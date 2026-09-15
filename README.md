@@ -107,7 +107,7 @@ hot-potato-chip-bag/
 │   ├── parkour_state.py
 │   ├── score_state.py
 │   └── construction_state.py
-├── entities/
+├── objects/
 │   ├── player.py          # Personapa: posición, velocidad, flags de intención, es_la_papa
 │   ├── consumible.py       # Powerups temporales
 │   ├── objeto.py           # Piezas colocables del mapa
