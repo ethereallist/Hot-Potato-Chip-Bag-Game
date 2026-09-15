@@ -1,10 +1,10 @@
-"""Objeto: pieza colocable del mapa, manipulada durante ConstructionState
+"""Object: pieza colocable del mapa, manipulada durante ConstructionState
 y con la que las Personapas colisionan durante ParkourState."""
 
 import pygame
 
 
-class Objeto:
+class Object:
     def __init__(self) -> None:
         self.posicion = pygame.Vector2()
         self.orientacion: int = 0

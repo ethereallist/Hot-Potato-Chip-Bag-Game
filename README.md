@@ -110,10 +110,10 @@ hot-potato-chip-bag/
 ├── objects/
 │   ├── player.py          # Personapa: posición, velocidad, flags de intención, es_la_papa
 │   ├── consumible.py       # Powerups temporales
-│   ├── objeto.py           # Piezas colocables del mapa
+│   ├── object.py           # Piezas colocables del mapa
 │   └── cursor.py
 ├── map/
-│   └── mapa.py             # Grilla de casillas: suelo, hueco, pared
+│   └── map.py             # Grilla de casillas: suelo, hueco, pared
 ├── assets/
 └── requirements.txt
 ```
