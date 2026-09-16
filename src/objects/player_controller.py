@@ -107,10 +107,9 @@ class PlayerController:
             
     def on_input(self, input_id: str, input_data: InputData):
         if self.possessed_entity == None:
-            return        
-        print("input")
+            return      
+        
         if self.device == "gamepad":
-            print(input_data.get_action_name())
             if (
                 input_data.get_action_name() == "gamepad_axis"
                 or input_data.get_action_name() == "gamepad_button"
