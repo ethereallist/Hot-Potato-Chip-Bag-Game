@@ -42,11 +42,13 @@ class Map:
 
         # Capa 2: índice del Objeto colocado en cada casilla (o None)
         self.object_layer = [
-            [None for _ in range(columns)] for _ in range(rows)
+            [-1 for _ in range(columns)] for _ in range(rows)
         ]
 
-        # Lista de Objetos colocados en el mapa
-        self.objects = []
+        # diccionario de Objetos colocados en el mapa
+        # la key de un objeto es un numero
+        self.object_counter = 0
+        self.objects = {}
 
         # TODO: tiempo de pisado por casilla, usado en ParkourState
         # para priorizar qué casillas se hunden primero
@@ -54,44 +56,168 @@ class Map:
 
     # --- Construcción (ConstructionState) ---
 
-    def get_containing_tile(self, x: int, y: int) -> TileType:
-        pass
+    def pos_is_inside_map(self, x: float, y: float) -> bool:
+        return (
+            (self.x <= x < self.x + self.columns * self.tile_size)
+            and (self.y <= y < self.y + self.rows * self.tile_size)
+        )
+        
+    def index_is_inside_map(self, col: int, row: int) -> bool:
+        return (
+            (0 <= col <= self.columns)
+            and (0 <= row <= self.rows)
+        )
+        
+    def pos_to_index(self, x: float, y: float) -> tuple(int,int):
+        if not self.pos_is_inside_map(x,y):
+            return (-1,-1)
+            
+        return (x//self.tile_size, y//self.tile_size)
+        
+    def index_to_pos(self, col: int, row: int):
+        if not self.index_is_inside_map(col,row):
+            return None
+            
+        return (self.x + col * self.tile_size, self.y + row * self.tile_size )
+        
+    def index_to_rel_pos(self, col: int, row: int):
+        if not self.index_is_inside_map(col,row):
+            return None
+            
+        return (col * self.tile_size, row * self.tile_size )
+        
+    def get_tile_by_pos(self, x: float, y: float):
+        if not self.pos_is_inside_map(x,y):
+            return None
+        
+        col, row = self.pos_to_index(x,y)
+        return self.tile_layer[col][row]
 
-    def get_tile(self, y:int,)
+    def get_tile_by_index(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return None
+        
+        return self.tile_layer[col][row]
+        
+    def get_rect_by_pos(self, x: float, y: float):
+        if not self.pos_is_inside_map(x,y):
+            return None
+        
+        col, row = self.pos_to_index(x,y)
+        return pygame.Rect(
+            col * self.tile_size,
+            row * self.tile_size,
+            self.tile_size,
+            self.tile_size
+        )
 
-    def set_tile(self, x: int, y: int, tipo: TileType) -> None:
-        pass
+    def get_rect_by_index(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return None
+        
+        return pygame.Rect(
+            col * self.tile_size,
+            row * self.tile_size,
+            self.tile_size,
+            self.tile_size
+        )
+        
+    def set_tile_by_pos(self, x: float, y: float, tile: TileType):
+        if not self.pos_is_inside_map(x,y):
+            return False
+        
+        col, row = self.pos_to_index(x,y)
+        self.tile_layer[col][row] = tile
+        return True
 
-    def mover_tile(self, origen: tuple, destino: tuple) -> None:
-        pass
+    def set_tile_by_index(self, col: int, row: int, tile: TileType):
+        if not self.index_is_inside_map(col, row):
+            return False
+        
+        self.tile_layer[col][row] = tile
+        return True
+        
+    def get_obj_by_pos(self, x: float, y: float):
+        if not self.pos_is_inside_map(x,y):
+            return None
+        
+        col, row = self.pos_to_index(x,y)
+        index = self.obj_layer[col][row]
+        return self.objects[index]
 
-    def rotar_tile(self, x: int, y: int) -> None:
-        pass
+    def get_obj_by_indexes(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return None
+        
+        index = self.obj_layer[col][row]
+        return self.objects[index]
+        
+    def get_obj_key_by_pos(self, x: float, y: float):
+        if not self.pos_is_inside_map(x,y):
+            return None
+        
+        col, row = self.pos_to_index(x,y)
+        return self.obj_layer[col][row]
 
-    def colocar_objeto(self, obj, x: int, y: int) -> None:
-        pass
+    def get_obj_key_by_indexes(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return None
+        
+        return self.obj_layer[col][row]
+        
+    def remove_object_by_indexes(self, col: int, row: int, recursion_key: int = -1):
+        if not self.index_is_inside_map(col, row):
+            return
+            
+        tile_key = self.obj_layer[col][row]
+        if recursion_key == -1: #no es un llamado recursivo
+            if tile_key == -1: #la casilla esta vacia
+                return
+            else: #la casilla no estaba vacia
+                self.obj_layer[col][row] = -1 #la vaciamos
+                #llamamos recursivamente en las cuatro casillas adjacentes
+                self.object_removal_recursion(col, row, tile_key)
+                #tras la resolucion de los llamados recursivos
+                #quitamos el objeto respectivo del diccionario
+                self.objects.pop(tile_key) 
+        elif recursion_key == tile_key: #si es llamado recursivo
+            #como la casilla actual coincide
+            #con el key que queremos eliminar del mapa
+            self.obj_layer[col][row] = -1 #la vaciamos
+            #llamamos recursivamente en las cuatro casillas adjacentes
+            self.object_removal_recursion(col, row, recursion_key)
+            
+        #en caso de hacer un llamado recursivo sobre una casilla
+        #no vacia pero de otra clave, simplemente se ignora
+    
+    def object_removal_recursion(self, col: int, row: int, recursion_key: int):
+        self.remove_object_by_indexes(col - 1, row, recursion_key) #arriba
+        self.remove_object_by_indexes(col, row + 1, recursion_key) #derecha        
+        self.remove_object_by_indexes(col + 1, row, recursion_key) #abajo
+        self.remove_object_by_indexes(col, row - 1, recursion_key) #izquierda
+        
+    def add_object(self, obj, base_indices: tuple[int, int], relative_indices_list: list[tuple[int, int]]) -> None:
+        """
+        Añade un objeto al diccionario de objetos y asigna el ID del objeto en
+        las casillas de object_layer resultantes de sumar los índices relativos.
+        """
+        # 1. Guardar el objeto en el diccionario usando el contador como clave
+        self.objects[self.object_counter] = obj
+        
+        base_col, base_row = base_indices
 
-    def quitar_objeto(self, x: int, y: int) -> None:
-        pass
+        # 2. Asignar el ID del objeto en cada posición calculada
+        for rel_col, rel_row in relative_indices_list:
+            target_col = base_col + rel_col
+            target_row = base_row + rel_row
 
-    def posicion_valida(self, x: int, y: int) -> bool:
-        pass
+            # Verificar que la casilla destino esté dentro de los límites del mapa
+            if self.index_is_inside_map(target_col, target_row):
+                self.object_layer[target_row][target_col] = self.object_counter
 
-    # --- Parkour (ParkourState): colisión según tipo de casilla ---
+        # 3. Incrementar el contador para el próximo objeto
+        self.object_counter += 1
 
-    def colisionar(self, personapa, x: int, y: int) -> None:
-        """Despacha al método de colisión correspondiente según el tipo
-        de casilla en (x, y)."""
-        pass
-
-    def colisionar_suelo(self, personapa) -> None:
-        pass
-
-    def colisionar_hueco(self, personapa) -> None:
-        pass
-
-    def colisionar_pared(self, personapa) -> None:
-        pass
 
     # --- Hundimiento progresivo de casillas ---
 
