@@ -10,51 +10,62 @@ distinta (ver diagrama: suelo no hace nada, hueco hace caer al jugador
 salvo que esté en dash, pared lo empuja hacia afuera).
 """
 
-from enum import Enum, auto
+import settings
+from enum import IntEnum, auto
 
 import pygame
 
 
-class TipoCasilla(Enum):
-    SUELO = auto()
-    HUECO = auto()
-    PARED = auto()
+class TileType(IntEnum):
+    FLOOR = 0
+    HOLE = 1
+    WALL = 2
 
+COLOR_PALETTE = {
+    TileType.FLOOR: (170, 150, 120),   # marron
+    TileType.HOLE: (50, 50, 50),     # Gris oscuro
+    TileType.WALL: (240, 240, 240), # Gris claro
+}
 
-class Mapa:
-    def __init__(self, ancho: int, alto: int) -> None:
-        self.ancho = ancho
-        self.alto = alto
+class Map:
+    def __init__(self, x: float, y: float, columns: int, rows: int) -> None:
+        self.x = x
+        self.y = y
+        self.columns = columns #cantidad de columnas
+        self.rows = rows #cantidad de filas
+        self.tile_size = settings.TILE_SIZE 
 
-        # Capa 1: tipo de cada casilla (Grid2D de TipoCasilla)
-        self.capa_casillas = [
-            [TipoCasilla.SUELO for _ in range(ancho)] for _ in range(alto)
+        # Capa 1: tipo de cada casilla (Grid2D de TileType)
+        self.tile_layer = [
+            [TileType.FLOOR for _ in range(columns)] for _ in range(rows)
         ]
 
         # Capa 2: índice del Objeto colocado en cada casilla (o None)
-        self.capa_indices_objetos = [
-            [None for _ in range(ancho)] for _ in range(alto)
+        self.object_layer = [
+            [None for _ in range(columns)] for _ in range(rows)
         ]
 
         # Lista de Objetos colocados en el mapa
-        self.objetos = []
+        self.objects = []
 
         # TODO: tiempo de pisado por casilla, usado en ParkourState
         # para priorizar qué casillas se hunden primero
-        self.tiempo_pisado = [[0.0 for _ in range(ancho)] for _ in range(alto)]
+        self.stood_time_layer = [[0.0 for _ in range(columns)] for _ in range(rows)]
 
     # --- Construcción (ConstructionState) ---
 
-    def get_casilla(self, x: int, y: int) -> TipoCasilla:
+    def get_containing_tile(self, x: int, y: int) -> TileType:
         pass
 
-    def set_casilla(self, x: int, y: int, tipo: TipoCasilla) -> None:
+    def get_tile(self, y:int,)
+
+    def set_tile(self, x: int, y: int, tipo: TileType) -> None:
         pass
 
-    def mover_casilla(self, origen: tuple, destino: tuple) -> None:
+    def mover_tile(self, origen: tuple, destino: tuple) -> None:
         pass
 
-    def rotar_casilla(self, x: int, y: int) -> None:
+    def rotar_tile(self, x: int, y: int) -> None:
         pass
 
     def colocar_objeto(self, obj, x: int, y: int) -> None:
@@ -93,4 +104,20 @@ class Mapa:
     # --- Render ---
 
     def render(self, surface: pygame.Surface) -> None:
-        pass
+        for row in range(self.rows):
+            for col in range(self.columns):
+                tile_value = self.tile_layer[row][col]
+                
+                # Obtiene el color correspondiente al valor (usa negro si no existe)
+                color = COLOR_PALETTE.get(tile_value, (0, 0, 0))
+                
+                # Cálculo de la posición individual de cada rectángulo
+                pos_x = self.x + (col * self.tile_size)
+                pos_y = self.y + (row * self.tile_size)
+                
+                # Dibuja el rectángulo relleno
+                rect = pygame.Rect(pos_x, pos_y, self.tile_size,  self.tile_size)
+                pygame.draw.rect(surface, color, rect)
+                
+                # Opcional: Dibuja un borde delgado para delimitar las casillas
+                pygame.draw.rect(surface, (0, 0, 0), rect, width=1)
