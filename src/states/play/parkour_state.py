@@ -37,6 +37,7 @@ SINK_INTERVAL = 2.0
 
 class ParkourState(BaseState):
     def enter(self, **kwargs) -> None:
+        self.play_state = kwargs["play_state"]
         self.personapas: list[Personapa] = []
         self.controllers: list[PlayerController] = []  # solo teclado, vía Gale
 
@@ -86,7 +87,7 @@ class ParkourState(BaseState):
         self.round_time_left = ROUND_DURATION
         self.sink_timer = SINK_START_DELAY
 
-        self.death_log: list[dict] = []
+        self.death_log: list[bool] = [True for _ in range(self.play_state.player_count)]
 
         pygame.font.init()
         self._font = pygame.font.SysFont(None, 72)
@@ -139,7 +140,8 @@ class ParkourState(BaseState):
             self._end_round()
 
     def _check_tile_effects(self, dt: float) -> None:
-        for personapa in self.personapas:
+        for i in range(len(self.personapas)):
+            personapa = self.personapas[i]
             if not personapa.is_alive:
                 continue
             col, row = self.mapa.pos_to_index(*personapa.collide_box.center)
@@ -149,7 +151,7 @@ class ParkourState(BaseState):
             was_alive = personapa.is_alive
             self.mapa.resolve_tile_collision(personapa, col, row)
             if was_alive and not personapa.is_alive:
-                self.death_log.append({"personapa": personapa, "cause": "fell"})
+                self.death_log[i] = False
 
     def _check_player_collisions(self) -> None:
         alive = [p for p in self.personapas if p.is_alive]
@@ -178,16 +180,21 @@ class ParkourState(BaseState):
             self.mapa.hundir_casillas_random()
 
     def _explode_hot_potato(self) -> None:
-        for personapa in self.personapas:
+        for i in range(len(self.personapas)):
+            personapa = self.personapas[i]
             if personapa.is_hot_potato and personapa.is_alive:
                 personapa.is_alive = False
-                self.death_log.append({"personapa": personapa, "cause": "explosion"})
+                self.death_log[i] = False
 
     def _count_alive(self) -> int:
         return sum(1 for p in self.personapas if p.is_alive)
 
     def _end_round(self) -> None:
-        self.state_machine.change("score", death_log=self.death_log, personapas=self.personapas)
+        self.state_machine.change(
+            "score",
+            death_log=self.death_log,
+            play_state=self.play_state,
+        )
 
     def render(self, surface: pygame.Surface) -> None:
         surface.fill("black")
