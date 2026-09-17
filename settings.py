@@ -5,8 +5,11 @@ Gale lee este archivo automáticamente si está en la raíz del proyecto
 """
 
 # TODO: resolución de ventana / resolución virtual
-# WINDOW_WIDTH = 1280
-# WINDOW_HEIGHT = 720
+WINDOW_WIDTH = 1280
+WINDOW_HEIGHT = 720
+
+#Configuraciones del mapa
+TILE_SIZE = 64
 
 # TODO: número de jugadores soportados
 # MAX_PLAYERS = 4
