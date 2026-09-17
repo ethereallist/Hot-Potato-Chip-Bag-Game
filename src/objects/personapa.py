@@ -54,7 +54,6 @@ class Personapa:
         self.is_hot_potato: bool = False
         self.is_alive: bool = True
         self.size: int = 40  # width/height of the box, while there's no sprite
-        self.collide_box = pygame.Rect(0, 0, self.size, self.size)
 
         # --- Dash ---
         self.dash_speed: float = 600
@@ -68,6 +67,9 @@ class Personapa:
         self._main_action_was_pressed: bool = False
 
         self.dash_trail = DashTrail()
+
+    def get_rect(self) -> pygame.Rect:
+        return pygame.Rect(self.position.x, self.position.y, self.size, self.size)
 
     def move(self, dt: float) -> None:
         if self.move_intent.length_squared() > 0:
@@ -87,14 +89,13 @@ class Personapa:
             if self.dash_time_left <= 0:
                 self.is_dashing = False
 
-            self.dash_trail.emit(dt, self.collide_box.center)
+            self.dash_trail.emit(dt, self.get_rect().center)
         else:
             direction = self.move_intent
             if direction.length_squared() > 0:
                 direction = direction.normalize()
             self.position += direction * self.max_speed * dt
 
-        self.collide_box.topleft = (self.position.x, self.position.y)
         self.dash_trail.update(dt)  # keep fading even after the dash ends
 
     def dash(self) -> None:
@@ -107,13 +108,16 @@ class Personapa:
         self.dash_direction = pygame.Vector2(self.facing_direction)
 
     def _get_other_box(self, other) -> pygame.Rect:
-        return getattr(other, "collide_box", None) or getattr(other, "collidebox", None)
+        method = getattr(other, "get_rect", None)
+        if not method == None:
+            return method()
+        return None
 
     def collides_with(self, other) -> bool:
         other_box = self._get_other_box(other)
         if other_box is None:
             return False
-        return self.collide_box.colliderect(other_box)
+        return self.get_rect().colliderect(other_box)
 
     def handle_collision(self, other) -> None:
         if not self.collides_with(other):
@@ -123,20 +127,20 @@ class Personapa:
             other.on_collide()
 
         other_box = self._get_other_box(other)
-        overlap = self.collide_box.clip(other_box)
+        overlap = self.get_rect().clip(other_box)
 
         if overlap.width < overlap.height:
-            if self.collide_box.centerx < other_box.centerx:
+            if self.get_rect().centerx < other_box.centerx:
                 self.position.x -= overlap.width
             else:
                 self.position.x += overlap.width
         else:
-            if self.collide_box.centery < other_box.centery:
+            if self.get_rect().centery < other_box.centery:
                 self.position.y -= overlap.height
             else:
                 self.position.y += overlap.height
 
-        self.collide_box.topleft = (self.position.x, self.position.y)
+        self.get_rect().topleft = (self.position.x, self.position.y)
 
     def render(self, surface: pygame.Surface) -> None:
         self.dash_trail.render(surface)
@@ -144,4 +148,4 @@ class Personapa:
         # placeholder: white circle while there's no sprite/appearance yet;
         # red while dashing
         color = "red" if self.is_dashing else "white"
-        pygame.draw.circle(surface, color, self.collide_box.center, self.size // 2)
+        pygame.draw.circle(surface, color, self.get_rect().center, self.size // 2)
