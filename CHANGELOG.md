@@ -45,4 +45,12 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [0.5.0] - 2026-09-17
 
-### Added Map
+### Added
+
+Map
+
+## [0.6.0] - 2026-09-17
+
+### Added
+
+PlayState
