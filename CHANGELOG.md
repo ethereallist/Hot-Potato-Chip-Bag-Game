@@ -65,3 +65,8 @@ PlayState
 ### Fixed
 - `PlayerController`: las líneas que leían `axis_x`/`axis_y` estaban fuera del bloque que filtra por tipo de dispositivo — un jugador de teclado terminaba reaccionando también al stick de un mando conectado. Ya quedan correctamente aisladas dentro del bloque de `device == "gamepad"`.
 - Se eliminaron las clases de comando sin usar (`MoveLeftCommand`, `MoveRightCommand`, `MoveUpCommand`, `MoveDownCommand` con `move_*_intent`) que quedaron de una versión anterior y nunca se llegaron a bindear.
+
+## [0.7.1] - 2026-09-17
+
+### Fixed
+- Se arregló la colision con las paredes, el collidebox del jugador ahora se obtiene con getrect.
