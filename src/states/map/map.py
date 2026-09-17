@@ -112,8 +112,8 @@ class Map:
         
         col, row = self.pos_to_index(x,y)
         return pygame.Rect(
-            col * self.tile_size,
-            row * self.tile_size,
+            self.x + col * self.tile_size,
+            self.y + row * self.tile_size,
             self.tile_size,
             self.tile_size
         )
@@ -123,8 +123,8 @@ class Map:
             return None
         
         return pygame.Rect(
-            col * self.tile_size,
-            row * self.tile_size,
+            self.x + col * self.tile_size,
+            self.y + row * self.tile_size,
             self.tile_size,
             self.tile_size
         )
