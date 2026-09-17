@@ -14,6 +14,7 @@ import settings
 from enum import IntEnum, auto
 
 import pygame
+import random
 
 
 class TileType(IntEnum):
@@ -22,9 +23,10 @@ class TileType(IntEnum):
     WALL = 2
 
 COLOR_PALETTE = {
-    TileType.FLOOR: (170, 150, 120),   # marron
-    TileType.HOLE: (50, 50, 50),     # Gris oscuro
-    TileType.WALL: (240, 240, 240), # Gris claro
+    TileType.FLOOR: (170, 150, 120),    # marron
+    TileType.HOLE: (50, 50, 50),        # Gris oscuro
+    TileType.SUNKEN: (50, 50, 50),      # Gris oscuro
+    TileType.WALL: (240, 240, 240),     # Gris claro
 }
 
 class Map:
@@ -50,10 +52,13 @@ class Map:
         self.object_counter = 0
         self.objects = {}
 
-        # TODO: tiempo de pisado por casilla, usado en ParkourState
+        # Lista y tabla de hundimiento, usado en ParkourState
         # para priorizar qué casillas se hunden primero
-        self.stood_time_layer = [[0.0 for _ in range(columns)] for _ in range(rows)]
-
+        self.sink_layer = []
+        self.sink_list = []
+        self.nonfloor_tile_count = 0
+        self.recount_nonfloor_tiles()
+        self.restart_sinking_structures()
     # --- Construcción (ConstructionState) ---
 
     def pos_is_inside_map(self, x: float, y: float) -> bool:
@@ -91,13 +96,15 @@ class Map:
             return None
         
         col, row = self.pos_to_index(x,y)
-        return self.tile_layer[col][row]
+        tile = self.tile_layer[col][row]
+        return TileType.HOLE if tile == TileType.SUNKEN else tile
 
     def get_tile_by_index(self, col: int, row: int):
         if not self.index_is_inside_map(col, row):
             return None
         
-        return self.tile_layer[col][row]
+        tile = self.tile_layer[col][row]
+        return TileType.HOLE if tile == TileType.SUNKEN else tile
         
     def get_rect_by_pos(self, x: float, y: float):
         if not self.pos_is_inside_map(x,y):
@@ -218,21 +225,87 @@ class Map:
         # 3. Incrementar el contador para el próximo objeto
         self.object_counter += 1
 
-
     # --- Hundimiento progresivo de casillas ---
 
-    def registrar_pisado(self, x: int, y: int, dt: float) -> None:
-        pass
-
-    def hundir_casillas_random(self) -> None:
-        pass
+    def reset_sinking(self) -> None:
+        nonfloor_count_so_far = 0
+        self.sink_layer = []
+        floor_list = []
+        nonfloor_list = []
+        
+        for i in range(self.columns):
+            col = []
+            self.sink_layer.append(col) 
+            for j in range(self.rows):
+                if self.tile_layer[i][j] == TileType.FLOOR:
+                    col.append(j + i * self.rows - nonfloor_count_so_far)
+                    floor_list.append((i,j))
+                else:
+                    col.append(self.columns * self.rows - 1 - nonfloor_count_so_far)
+                    nonfloor_list.append((i,j))
+                    nonfloor_count_so_far += 1
+        
+        self.sink_list = floor_list
+        for i in range(nonfloor_count_so_far):
+            index_pair = nonfloor_list[nonfloor_count_so_far - 1 - i]
+            self.sink_list.append(index_pair)
+                    
+    def unsink(self):
+        for i in range(columns): 
+            for j in range(rows):
+                if self.tile_layer[i][j] == TileType.SUNKEN:
+                    self.tile_layer [i][j] = TileType.FLOOR
+                    
+    def recount_nonfloor_tiles(self):
+        count = 0
+        for i in range(columns): 
+            for j in range(rows):
+                if not self.tile_layer[i][j] == TileType.FLOOR:
+                    count += 1
+        self.nonfloor_tile_count = count
+        
+    def swap_sinking_data(self, number: int, other: int) ->:
+        other_indx = self.sink_list[other]
+        self.sink_list[other] = self.sink_list[number]
+        self.sink_list[number] = other_indx
+        self.sink_layer[self.sink_list[number][0]][self.sink_list[number][1]] = number
+        self.sink_layer[self.sink_list[other][0]][self.sink_list[other][1]] = other
+        
+    def register_sink(self, x: float, y: float, dt: float) -> None:
+        if not self.pos_is_inside_map(x,y):
+            return
+        
+        col, row = pos_to_index(x,y)
+        if not self.tile_layer[col][row] == TileType.FLOOR:
+            return
+        
+        old_number = self.sink_layer[col][row]
+        new_number = max(0, old_number - 3)
+        self.swap_sinking_data(old_number, new_number)
+        
+    def sink_random_tile(self) -> None:
+        first_nonfloor_tile = self.columns * self.rows - self.nonfloor_tile_count
+        
+        if first_nonfloor_tile == 0:
+            return
+        
+        r = random.random()
+        rsqr = r*r
+        number = int((first_nonfloor_tile - 1) * rsqr)
+        self.sink_tile(number)
+        self.swap_sinking_data(number, first_nonfloor_tile - 1)
+        
+    def sink_tile(self, number: int) -> None:
+        col, row = self.sink_list[number]
+        self.tile_layer[col][row] = TileType.SUNKEN
+        self.nonfloor_tile_count += 1
 
     # --- Render ---
 
     def render(self, surface: pygame.Surface) -> None:
         for row in range(self.rows):
             for col in range(self.columns):
-                tile_value = self.tile_layer[row][col]
+                tile_value = self.get_tile_by_index[row][col]
                 
                 # Obtiene el color correspondiente al valor (usa negro si no existe)
                 color = COLOR_PALETTE.get(tile_value, (0, 0, 0))
