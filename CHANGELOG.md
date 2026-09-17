@@ -54,3 +54,19 @@ Map
 ### Added
 
 PlayState
+
+## [0.6.0] - 2026-09-17
+
+### Added
+
+PlayState
+
+## [0.7.0] - 2026-09-17
+
+### Added
+- Control del jugador 3 con mando, leído directamente con `pygame.joystick` (sondeo por frame) en vez de por el sistema de eventos de Gale — más confiable para el hardware que estábamos probando.
+- Opción para invertir el eje vertical del stick (`invert_y`), ya que distintos mandos reportan la dirección "arriba" al revés.
+
+### Fixed
+- `PlayerController`: las líneas que leían `axis_x`/`axis_y` estaban fuera del bloque que filtra por tipo de dispositivo — un jugador de teclado terminaba reaccionando también al stick de un mando conectado. Ya quedan correctamente aisladas dentro del bloque de `device == "gamepad"`.
+- Se eliminaron las clases de comando sin usar (`MoveLeftCommand`, `MoveRightCommand`, `MoveUpCommand`, `MoveDownCommand` con `move_*_intent`) que quedaron de una versión anterior y nunca se llegaron a bindear.
