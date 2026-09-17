@@ -17,8 +17,6 @@ from src.states.win_state import WinState
 
 class HotPotatoChipBagGame(Game):
     def init(self) -> None:
-        # TODO: instanciar el StateMachine de nivel superior con los 3
-        # estados del diagrama y arrancar en "menu".
         self.state_machine = StateMachine(
             {
                 "menu": MenuState,
@@ -26,13 +24,13 @@ class HotPotatoChipBagGame(Game):
                 "win": WinState,
             }
         )
-        # self.state_machine.change("menu")
+        self.state_machine.change("play")  # TODO: volver a "menu" cuando exista
 
     def update(self, dt: float) -> None:
-        pass
+        self.state_machine.update(dt)
 
     def render(self, surface: pygame.Surface) -> None:
-        pass
+        self.state_machine.render(surface)
 
     def on_input(self, input_id, input_data) -> None:
-        pass
+        self.state_machine.on_input(input_id, input_data)
