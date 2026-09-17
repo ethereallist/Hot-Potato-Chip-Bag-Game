@@ -3,10 +3,13 @@ diagonales de colores saturados, texto grueso con contorno, y botones
 redondeados con borde marcado."""
 
 import math
+import random
 
 import pygame
 
 from gale.state import BaseState
+
+from src.objects.personapa import Personapa
 
 import settings
 
@@ -27,6 +30,11 @@ BUTTON_TEXT_SELECTED = (20, 20, 30)
 TITLE_FONT_PATH = "assets/fonts/Bloom-Regular.otf"
 BUTTON_FONT_PATH = "assets/fonts/Hansief.otf"
 
+MENU_PERSONAPA_COUNT = 4
+MENU_PERSONAPA_MARGIN = 30       # no se acercan a menos de esto del borde
+MENU_PERSONAPA_SPEED = 90        # más lento que en el juego real, para que se vea "de fondo"
+DIRECTION_CHANGE_RANGE = (1.5, 3.5)  # segundos entre cambios de rumbo al azar
+
 
 class MenuState(BaseState):
     def enter(self, **kwargs) -> None:
@@ -41,6 +49,65 @@ class MenuState(BaseState):
 
         self.selected_index = 0
         self._time = 0.0
+
+        self._init_menu_personapas()
+
+    def _init_menu_personapas(self) -> None:
+        """4 Personapas de adorno en el fondo del menú: IA simple que
+        camina en una dirección, cambia de rumbo cada rato, rebota en
+        el margen del borde, y se empuja con las demás si chocan."""
+        self.menu_personapas: list[Personapa] = []
+        self._menu_personapa_timers: list[float] = []
+
+        margin = MENU_PERSONAPA_MARGIN
+        for _ in range(MENU_PERSONAPA_COUNT):
+            p = Personapa()
+            p.max_speed = MENU_PERSONAPA_SPEED
+            p.position = pygame.Vector2(
+                random.uniform(margin, self.width - margin - p.size),
+                random.uniform(margin, self.height - margin - p.size),
+            )
+            p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+
+            self.menu_personapas.append(p)
+            self._menu_personapa_timers.append(random.uniform(*DIRECTION_CHANGE_RANGE))
+
+    def _update_menu_personapas(self, dt: float) -> None:
+        margin = MENU_PERSONAPA_MARGIN
+
+        for i, p in enumerate(self.menu_personapas):
+            # cambia de rumbo al azar cada cierto tiempo, para que no
+            # caminen en línea recta todo el rato
+            self._menu_personapa_timers[i] -= dt
+            if self._menu_personapa_timers[i] <= 0:
+                self._menu_personapa_timers[i] = random.uniform(*DIRECTION_CHANGE_RANGE)
+                p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+
+            p.move(dt)
+
+            # rebote al llegar al margen del borde de la ventana
+            min_x, max_x = margin, self.width - margin - p.size
+            min_y, max_y = margin, self.height - margin - p.size
+
+            if p.position.x < min_x:
+                p.position.x = min_x
+                p.move_intent.x = abs(p.move_intent.x)
+            elif p.position.x > max_x:
+                p.position.x = max_x
+                p.move_intent.x = -abs(p.move_intent.x)
+
+            if p.position.y < min_y:
+                p.position.y = min_y
+                p.move_intent.y = abs(p.move_intent.y)
+            elif p.position.y > max_y:
+                p.position.y = max_y
+                p.move_intent.y = -abs(p.move_intent.y)
+
+        # colisión entre ellas mismas, reutilizando lo que ya existe en Personapa
+        for i, a in enumerate(self.menu_personapas):
+            for b in self.menu_personapas[i + 1:]:
+                a.handle_collision(b)
+                b.handle_collision(a)
 
     def _load_font(self, font_path: str, size: int) -> pygame.font.Font:
         if font_path:
@@ -127,6 +194,7 @@ class MenuState(BaseState):
 
     def update(self, dt: float) -> None:
         self._time += dt
+        self._update_menu_personapas(dt)
 
     def on_input(self, input_id, input_data) -> None:
         if not getattr(input_data, "pressed", False):
@@ -148,6 +216,9 @@ class MenuState(BaseState):
 
     def render(self, surface: pygame.Surface) -> None:
         surface.blit(self.stripes_surface, (0, 0))
+
+        for p in self.menu_personapas:
+            p.render(surface)
 
         title = self._render_outlined_text(self._title_font, "HOT POTATO CHIP BAG", TITLE_COLOR)
         title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 20))
