@@ -65,8 +65,7 @@ InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p3_secondary", gamepad
 # el jugador 3 pero con gamepad_id=1.
 
 # TODO: resolución de ventana / resolución virtual
-# WINDOW_WIDTH = 1280
-# WINDOW_HEIGHT = 720
-
+WINDOW_WIDTH = 700
+WINDOW_HEIGHT = 500
 # usado por src/states/map/map.py
 TILE_SIZE = 50

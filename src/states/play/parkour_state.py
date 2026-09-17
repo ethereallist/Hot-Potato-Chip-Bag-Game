@@ -9,10 +9,12 @@ from gale.state import BaseState
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
+from src.objects.gamepad_direct import GamepadDirectController
 from src.states.map.map import Map, TileType
 
 
-PLAYER_CONFIGS = [
+# Jugadores 1 y 2: teclado, vía Gale (funciona bien por eventos)
+KEYBOARD_PLAYER_CONFIGS = [
     {
         "device": "keyboard",
         "left": "p1_left", "right": "p1_right", "up": "p1_up", "down": "p1_down",
@@ -22,16 +24,6 @@ PLAYER_CONFIGS = [
         "device": "keyboard",
         "left": "p2_left", "right": "p2_right", "up": "p2_up", "down": "p2_down",
         "main_action": "p2_main", "secondary_action": "p2_secondary",
-    },
-    {
-        "device": "gamepad", "gamepad_id": 0,
-        "left": "p3_left", "right": "p3_right", "up": "p3_up", "down": "p3_down",
-        "main_action": "p3_main", "secondary_action": "p3_secondary",
-    },
-    {
-        "device": "gamepad", "gamepad_id": 1,
-        "left": "p4_left", "right": "p4_right", "up": "p4_up", "down": "p4_down",
-        "main_action": "p4_main", "secondary_action": "p4_secondary",
     },
 ]
 
@@ -46,9 +38,9 @@ SINK_INTERVAL = 2.0
 class ParkourState(BaseState):
     def enter(self, **kwargs) -> None:
         self.personapas: list[Personapa] = []
-        self.controllers: list[PlayerController] = []
+        self.controllers: list[PlayerController] = []  # solo teclado, vía Gale
 
-        for config, start_pos in zip(PLAYER_CONFIGS, START_POSITIONS):
+        for config, start_pos in zip(KEYBOARD_PLAYER_CONFIGS, START_POSITIONS):
             personapa = Personapa()
             personapa.position = pygame.Vector2(start_pos)
             personapa.collide_box.topleft = start_pos
@@ -59,11 +51,34 @@ class ParkourState(BaseState):
             self.personapas.append(personapa)
             self.controllers.append(controller)
 
+        # Jugador 3: mando, leído directo con pygame (sondeo, sin eventos de Gale)
+        personapa_3 = Personapa()
+        personapa_3.position = pygame.Vector2(START_POSITIONS[2])
+        personapa_3.collide_box.topleft = START_POSITIONS[2]
+        self.personapas.append(personapa_3)
+
+        self.gamepad_controller = None
+        try:
+            self.gamepad_controller = GamepadDirectController(joystick_index=0, invert_y=True)
+            self.gamepad_controller.possessed_entity = personapa_3
+        except pygame.error:
+            pass  # no hay mando conectado; el jugador 3 simplemente no se mueve
+
+        # Jugador 4: todavía sin dispositivo asignado (falta un segundo mando).
+        # Se crea igual para que aparezca en pantalla, pero se queda quieto
+        # hasta que se le conecte un control (ver TODO más abajo).
+        personapa_4 = Personapa()
+        personapa_4.position = pygame.Vector2(START_POSITIONS[3])
+        personapa_4.collide_box.topleft = START_POSITIONS[3]
+        self.personapas.append(personapa_4)
+
+        # TODO: cuando haya un segundo mando físico conectado, algo como:
+        # self.gamepad_controller_2 = GamepadDirectController(joystick_index=1)
+        # self.gamepad_controller_2.possessed_entity = personapa_4
+        self.gamepad_controller_2 = None
+
         random.choice(self.personapas).is_hot_potato = True
 
-        # TODO: este mapa debería venir de ConstructionState; mientras esa
-        # fase no exista, se genera una arena de prueba con borde de pared
-        # y un hueco, solo para poder probar ParkourState de forma aislada
         self.mapa = Map(x=0, y=0, columns=14, rows=10)
         self._construir_arena_de_prueba()
 
@@ -92,14 +107,19 @@ class ParkourState(BaseState):
     def on_input(self, input_id: str, input_data) -> None:
         if self.in_countdown:
             return
-
         for controller in self.controllers:
             controller.on_input(input_id, input_data)
+        # el mando NO pasa por aquí: se sondea directo en update()
 
     def update(self, dt: float) -> None:
         if self.in_countdown:
             self.countdown_time_left -= dt
             return
+
+        if self.gamepad_controller is not None:
+            self.gamepad_controller.poll()
+        if self.gamepad_controller_2 is not None:
+            self.gamepad_controller_2.poll()
 
         self.round_time_left -= dt
 
@@ -122,13 +142,10 @@ class ParkourState(BaseState):
         for personapa in self.personapas:
             if not personapa.is_alive:
                 continue
-
             col, row = self.mapa.pos_to_index(*personapa.collide_box.center)
             if col == -1:
-                continue  # fuera del mapa
-
+                continue
             self.mapa.registrar_pisado(col, row, dt)
-
             was_alive = personapa.is_alive
             self.mapa.resolve_tile_collision(personapa, col, row)
             if was_alive and not personapa.is_alive:
