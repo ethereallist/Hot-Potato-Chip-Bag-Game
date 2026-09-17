@@ -24,7 +24,7 @@ class HotPotatoChipBagGame(Game):
                 "win": WinState,
             }
         )
-        self.state_machine.change("play")  # TODO: volver a "menu" cuando exista
+        self.state_machine.change("menu")
 
     def update(self, dt: float) -> None:
         self.state_machine.update(dt)
