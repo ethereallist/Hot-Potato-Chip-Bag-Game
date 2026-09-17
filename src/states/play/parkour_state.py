@@ -9,11 +9,9 @@ from gale.state import BaseState
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
-from src.states.map.map import Mapa, TipoCasilla
+from src.states.map.map import Map, TileType
 
 
-# Un dict de configuración por jugador. Los nombres de acción (p1_left,
-# p2_left, etc.) deben coincidir con lo que registre settings.py.
 PLAYER_CONFIGS = [
     {
         "device": "keyboard",
@@ -39,10 +37,10 @@ PLAYER_CONFIGS = [
 
 START_POSITIONS = [(100, 100), (600, 100), (100, 400), (600, 400)]
 
-COUNTDOWN_DURATION = 3.0   # segundos sin procesar input, antes de empezar
-ROUND_DURATION = 20.0      # el reloj de la papa caliente/bomba
-SINK_START_DELAY = 6.0     # a partir de cuándo empiezan a hundirse casillas
-SINK_INTERVAL = 2.0        # cada cuánto se hunde una casilla nueva
+COUNTDOWN_DURATION = 3.0
+ROUND_DURATION = 20.0
+SINK_START_DELAY = 6.0
+SINK_INTERVAL = 2.0
 
 
 class ParkourState(BaseState):
@@ -56,18 +54,17 @@ class ParkourState(BaseState):
             personapa.collide_box.topleft = start_pos
 
             controller = PlayerController(config)
-            controller.possessed_entity = personapa  # el vínculo pedido
+            controller.possessed_entity = personapa
 
             self.personapas.append(personapa)
             self.controllers.append(controller)
 
-        # se decide al azar quién es la papa caliente
         random.choice(self.personapas).is_hot_potato = True
 
         # TODO: este mapa debería venir de ConstructionState; mientras esa
         # fase no exista, se genera una arena de prueba con borde de pared
         # y un hueco, solo para poder probar ParkourState de forma aislada
-        self.mapa = Mapa(ancho=14, alto=10, tile_size=50)
+        self.mapa = Map(x=0, y=0, columns=14, rows=10)
         self._construir_arena_de_prueba()
 
         self.countdown_time_left = COUNTDOWN_DURATION
@@ -80,13 +77,13 @@ class ParkourState(BaseState):
         self._font = pygame.font.SysFont(None, 72)
 
     def _construir_arena_de_prueba(self) -> None:
-        for x in range(self.mapa.ancho):
-            self.mapa.set_casilla(x, 0, TipoCasilla.PARED)
-            self.mapa.set_casilla(x, self.mapa.alto - 1, TipoCasilla.PARED)
-        for y in range(self.mapa.alto):
-            self.mapa.set_casilla(0, y, TipoCasilla.PARED)
-            self.mapa.set_casilla(self.mapa.ancho - 1, y, TipoCasilla.PARED)
-        self.mapa.set_casilla(7, 5, TipoCasilla.HUECO)
+        for col in range(self.mapa.columns):
+            self.mapa.set_tile_by_index(col, 0, TileType.WALL)
+            self.mapa.set_tile_by_index(col, self.mapa.rows - 1, TileType.WALL)
+        for row in range(self.mapa.rows):
+            self.mapa.set_tile_by_index(0, row, TileType.WALL)
+            self.mapa.set_tile_by_index(self.mapa.columns - 1, row, TileType.WALL)
+        self.mapa.set_tile_by_index(7, 5, TileType.HOLE)
 
     @property
     def in_countdown(self) -> bool:
@@ -94,7 +91,7 @@ class ParkourState(BaseState):
 
     def on_input(self, input_id: str, input_data) -> None:
         if self.in_countdown:
-            return  # durante el countdown no se procesa el input del jugador
+            return
 
         for controller in self.controllers:
             controller.on_input(input_id, input_data)
@@ -104,7 +101,6 @@ class ParkourState(BaseState):
             self.countdown_time_left -= dt
             return
 
-        # se empieza y observa el reloj de la bomba/papa caliente
         self.round_time_left -= dt
 
         for personapa in self.personapas:
@@ -123,23 +119,22 @@ class ParkourState(BaseState):
             self._end_round()
 
     def _check_tile_effects(self, dt: float) -> None:
-        # se observa sobre qué casillas están posicionados los jugadores,
-        # aplicando efectos donde sea relevante, y se cuenta el tiempo de
-        # pisado de las casillas
         for personapa in self.personapas:
             if not personapa.is_alive:
                 continue
 
-            gx, gy = self.mapa.casilla_en(personapa.collide_box.center)
-            self.mapa.registrar_pisado(gx, gy, dt)
+            col, row = self.mapa.pos_to_index(*personapa.collide_box.center)
+            if col == -1:
+                continue  # fuera del mapa
+
+            self.mapa.registrar_pisado(col, row, dt)
 
             was_alive = personapa.is_alive
-            self.mapa.colisionar(personapa, gx, gy)
+            self.mapa.resolve_tile_collision(personapa, col, row)
             if was_alive and not personapa.is_alive:
                 self.death_log.append({"personapa": personapa, "cause": "fell"})
 
     def _check_player_collisions(self) -> None:
-        # se observa colisión entre jugadores para pasarse la papa
         alive = [p for p in self.personapas if p.is_alive]
         for i, a in enumerate(alive):
             for b in alive[i + 1:]:
@@ -153,17 +148,13 @@ class ParkourState(BaseState):
                     a.is_hot_potato = True
 
     def _check_object_collisions(self) -> None:
-        # se observa colisión de jugadores con objetos, llamando al
-        # método de colisión del objeto cuando sucede
         for personapa in self.personapas:
             if not personapa.is_alive:
                 continue
-            for obj in self.mapa.objetos:
+            for obj in self.mapa.objects.values():
                 personapa.handle_collision(obj)
 
     def _update_tile_sinking(self, dt: float) -> None:
-        # tras cierto tiempo se empieza a hundir casillas al azar,
-        # priorizando las que más tiempo de pisado tienen
         self.sink_timer -= dt
         if self.sink_timer <= 0:
             self.sink_timer = SINK_INTERVAL
@@ -179,8 +170,6 @@ class ParkourState(BaseState):
         return sum(1 for p in self.personapas if p.is_alive)
 
     def _end_round(self) -> None:
-        # si se acabó el tiempo o queda solo un jugador vivo, se pasa al
-        # estado score junto con la información de quién y cómo murió
         self.state_machine.change("score", death_log=self.death_log, personapas=self.personapas)
 
     def render(self, surface: pygame.Surface) -> None:
