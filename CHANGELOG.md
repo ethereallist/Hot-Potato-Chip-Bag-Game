@@ -70,3 +70,8 @@ PlayState
 
 ### Fixed
 - Se arregló la colision con las paredes, el collidebox del jugador ahora se obtiene con getrect.
+
+## [0.8.0] - 2026-09-17
+
+### Added
+- Menú principal con botones interactivos agregados, para moverse entre ellos se utiliza w, s y seleccionar con espacio.
