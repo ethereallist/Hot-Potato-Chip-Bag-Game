@@ -189,6 +189,27 @@ class ParkourState(BaseState):
             self._hud_font = pygame.font.SysFont(None, 28)
             self._hud_font_small = pygame.font.SysFont(None, 12)
 
+        if "personapas" in kwargs:
+            self.personapas = kwargs["personapas"]
+            
+            # 1. Revivir a todos para la nueva ronda y quitarles la papa
+            # por si acaso alguien la tenía de la ronda anterior.
+            for i, p in enumerate(self.personapas):
+                p.is_alive = True
+                p.alpha = 255            
+                
+                # Reubicarlos en su posición de inicio para la nueva ronda
+                # (en vez de (0,0), que podría caer dentro de una pared)
+                if i < len(START_POSITIONS):
+                    p.position = pygame.Vector2(START_POSITIONS[i])
+                
+                # Le quitamos la papa a todos primero
+                p.is_hot_potato = False
+
+            # 2. Asignar la papa a un jugador AL AZAR
+            jugador_elegido = random.choice(self.personapas)
+            jugador_elegido.is_hot_potato = True
+
     def _render_hud(self, surface: pygame.Surface) -> None:
         # --- Configuración de dimensiones y posición ---
         card_w, card_h = 280, 56
@@ -242,7 +263,9 @@ class ParkourState(BaseState):
             text_color = (245, 245, 245)
 
         # Texto de etiqueta pequeñita ("PAPA HOT")
-        label_surf = self._hud_font_small.render("¡PASA LA PAPA!", True, (160, 165, 180))
+        ronda_actual = self.play_state.rounds + 1
+        texto_label = f"¡PASA LA PAPA!  -  Ronda {ronda_actual}"
+        label_surf = self._hud_font_small.render(texto_label, True, (160, 165, 180))
         hud_surface.blit(label_surf, (bar_x, 8))
 
         # Texto principal del reloj
@@ -485,6 +508,7 @@ class ParkourState(BaseState):
             "score",
             death_log=self.death_log,
             play_state=self.play_state,
+            personapas=self.personapas  # ¡Importante para poder dibujarlas en los podios!
         )
 
     def render(self, surface: pygame.Surface) -> None:

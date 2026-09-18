@@ -18,6 +18,7 @@ from gale.state import HierarchicalState, BaseState, StateMachine
 
 from src.states.play.parkour_state import ParkourState
 from src.states.play.score_state import ScoreState
+from src.states.win_state import WinState
 
 
 class PlayState(HierarchicalState):
@@ -28,6 +29,8 @@ class PlayState(HierarchicalState):
                 "parkour": ParkourState,
                 "score": ScoreState,
                 "base": BaseState,
+                "win": WinState,
+
             },
             initial_substate = "base"
         )
@@ -50,10 +53,15 @@ class PlayState(HierarchicalState):
         return self.rounds >= self.max_rounds
         
     def check_winner(self) -> int:
-        for i in range(self.player_count):
-            if self.scores[i] >= self.target_score:
-                return i
+        # Verificamos si ya jugamos 3 rondas
+        if self.rounds >= 3:
+            # Buscamos cuál es el puntaje más alto
+            max_score = max(self.scores)
+            # Devolvemos el índice del jugador que tiene ese puntaje
+            winner_index = self.scores.index(max_score)
+            return winner_index
         
+        # Si llevamos menos de 3 rondas, devolvemos -1 (aún no hay ganador)
         return -1
         
     def return_to_menu(self):
