@@ -69,8 +69,6 @@ class HatSprites:
                 print(f"[HatSprites] ERROR cargando {sheet_path}: {type(e).__name__}: {e}")
                 tight_hats_per_sheet.append([])
 
-        print(f"[HatSprites] Canvas global (cuadrado) para TODOS los sombreros: {max_content_size}x{max_content_size}")
-
         # --- Pasada 2: centrar cada recorte en el canvas global único ---
         canvas_size = max_content_size
 
@@ -92,8 +90,6 @@ class HatSprites:
                     "flipped": hat_frames_flipped,
                 })
                 self.hat_names.append(f"Sombrero {len(self.hats)}")
-
-        print(f"[HatSprites] Total de sombreros cargados: {len(self.hats)}")
 
     @staticmethod
     def _find_blocks(mask: np.ndarray) -> List[Tuple[int, int]]:
@@ -144,22 +140,8 @@ class HatSprites:
         SIN normalizar a un canvas todavía (eso se hace después, con
         el tamaño global calculado entre las 3 hojas)."""
         sheet = pygame.image.load(sheet_path).convert_alpha()
-        sheet_width, sheet_height = sheet.get_size()
 
         col_blocks, row_blocks = self._detect_grid(sheet)
-
-        print(
-            f"[HatSprites] {sheet_path}: tamaño={sheet_width}x{sheet_height}, "
-            f"detecté {len(col_blocks)} columnas x {len(row_blocks)} filas "
-            f"(esperado: {self.FRAMES_PER_HAT} x {self.HATS_PER_SHEET})"
-        )
-
-        if len(col_blocks) != self.FRAMES_PER_HAT or len(row_blocks) != self.HATS_PER_SHEET:
-            print(
-                f"[HatSprites] AVISO: la grilla detectada en {sheet_path} no coincide "
-                f"con lo esperado. Columnas detectadas: {col_blocks} | "
-                f"Filas detectadas: {row_blocks}"
-            )
 
         rows: List[List[pygame.Surface]] = []
         for row_start, row_end in row_blocks:

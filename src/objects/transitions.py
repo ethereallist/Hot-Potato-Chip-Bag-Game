@@ -14,23 +14,21 @@ class TransitionBase:
         self.rate = 0 #rate is a value between 0 and 1, represents the progress of the transition 
         self.o_f = kwargs.get("on_finish", None)
         e_f = kwargs.get("ease_function_name", "linear")
-        if not self.o_f == None:
-            Timer.tween(
-                duration,
-                [(self,{"rate":1})],
-                ease_function_name=e_f,
-                on_finish=self.finish
-            )
-        else:
-            Timer.tween(
-                duration,
-                [(self,{"rate":1})],
-                ease_function_name=e_f
-            )
-        
+        # SIEMPRE se engancha self.finish, aunque no venga on_finish.
+        # Antes, sin on_finish el tween corria sin callback y self.finished
+        # se quedaba en False para siempre, asi que quien preguntara
+        # "ya termino?" (por ejemplo WinState) nunca recibia True.
+        Timer.tween(
+            duration,
+            [(self, {"rate": 1})],
+            ease_function_name=e_f,
+            on_finish=self.finish,
+        )
+
     def finish(self) -> None:
         self.finished = True
-        self.o_f()
+        if self.o_f is not None:
+            self.o_f()
     
     def render(self, surface: pygame.Surface) -> None:
         pass

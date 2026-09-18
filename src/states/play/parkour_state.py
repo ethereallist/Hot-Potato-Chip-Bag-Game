@@ -7,6 +7,7 @@ import random
 import pygame
 
 from gale.state import BaseState
+from gale.timer import Timer
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
@@ -14,6 +15,7 @@ from src.objects.gamepad_direct import GamepadDirectController
 from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
 
+_POTATO_PASS_DOWNTIME = 0.4
 
 # Jugadores 1 y 2: teclado, vía Gale (funciona bien por eventos)
 KEYBOARD_PLAYER_CONFIGS = [
@@ -170,7 +172,9 @@ class ParkourState(BaseState):
 
         self.mapa = Map(x=0, y=0, columns=14, rows=10)
         self._construir_arena_de_prueba()
-
+        
+        self.assign_hot_potato_randomly()
+        self.pass_allowed = True
         self.countdown_time_left = COUNTDOWN_DURATION
         self.round_time_left = ROUND_DURATION
         self.sink_timer = SINK_START_DELAY
@@ -209,6 +213,19 @@ class ParkourState(BaseState):
             # 2. Asignar la papa a un jugador AL AZAR
             jugador_elegido = random.choice(self.personapas)
             jugador_elegido.is_hot_potato = True
+
+    def assign_hot_potato_randomly(self) -> None:
+        """Le quita la papa a todos y se la asigna a alguien al azar
+        entre los que siguen VIVOS (para no dársela a quien ya cayó en
+        un hoyo o ya explotó). Se usa tanto al iniciar la ronda como
+        cuando, a mitad de partida, el que tenía la papa muere y hay
+        que pasarla a otro."""
+        for p in self.personapas:
+            p.is_hot_potato = False
+
+        alive = [p for p in self.personapas if p.is_alive]
+        if alive:
+            random.choice(alive).is_hot_potato = True
 
     def _render_hud(self, surface: pygame.Surface) -> None:
         # --- Configuración de dimensiones y posición ---
@@ -345,6 +362,8 @@ class ParkourState(BaseState):
                 if not personapa.is_dashing:
                     personapa.is_alive = False
                     self.death_log[i] = False
+                    if personapa.is_hot_potato:
+                        self.assign_hot_potato_randomly()
                     continue
            
             self.mapa.register_sink(*personapa.get_rect().center)
@@ -414,19 +433,23 @@ class ParkourState(BaseState):
             else:
                 personapa.position.y +=  upoverlap if upoverlap > 0 else -downoverlap
                 
+    def reallow_passing(self):
+        self.pass_allowed = True
         
     def _check_player_collisions(self) -> None:
+        if not self.pass_allowed:
+            return
+            
         alive = [p for p in self.personapas if p.is_alive]
         for i, a in enumerate(alive):
             for b in alive[i + 1:]:
                 if not a.collides_with(b):
                     continue
-                if a.is_hot_potato:
-                    a.is_hot_potato = False
-                    b.is_hot_potato = True
-                elif b.is_hot_potato:
-                    b.is_hot_potato = False
-                    a.is_hot_potato = True
+                if a.is_hot_potato or b.is_hot_potato:
+                    a.is_hot_potato = not a.is_hot_potato
+                    b.is_hot_potato = not b.is_hot_potato
+                    self.pass_allowed = False
+                    Timer.after(_POTATO_PASS_DOWNTIME,self.reallow_passing)
 
     def _check_object_collisions(self) -> None:
         for personapa in self.personapas:

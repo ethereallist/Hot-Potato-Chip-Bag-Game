@@ -50,6 +50,13 @@ class ScoreState(BaseState):
         except:
             self.font = pygame.font.SysFont(None, 40)
 
+        # Fondo de franjas diagonales, igual estilo que MenuState. Se genera
+        # en el primer render() usando el tamaño REAL de la superficie que
+        # se recibe ahí (no pygame.display.get_surface(), que puede diferir
+        # de la superficie virtual interna del framework y dejar franjas
+        # más chicas que la pantalla real -> franjas negras en los bordes).
+        self.stripes_surface = None
+
         self.transition = None
         self.is_transitioning = False
 
@@ -60,11 +67,46 @@ class ScoreState(BaseState):
         self.is_transitioning = True
         self.transition = FadeInOut(duration=1.0, color=(20, 22, 32), fade_out=True, on_finish=self._on_transition_finish)
 
+    def _generate_diagonal_stripes(self, width: int, height: int) -> pygame.Surface:
+        """Mismo estilo de franjas diagonales azules que MenuState
+        (src/states/menu_state.py::_generate_diagonal_stripes), pero
+        duplicado aquí para no depender de instanciar MenuState."""
+        stripe_color_a = (58, 134, 222)
+        stripe_color_b = (44, 108, 191)
+
+        surface = pygame.Surface((width, height))
+        band_width = 46
+
+        step = band_width
+        start = -height
+        end = width + height
+
+        surface.fill(stripe_color_a)
+        toggle = False
+        for x in range(start, end, step):
+            color = stripe_color_b if toggle else stripe_color_a
+            pygame.draw.line(
+                surface, color,
+                (x, 0), (x - height, height),
+                band_width,
+            )
+            toggle = not toggle
+
+        return surface
+
     def _on_transition_finish(self):
         winner_index = self.play_state.check_winner()
         if winner_index != -1:
-            # Pasa al estado de victoria
-            self.state_machine.change("win", play_state=self.play_state, winner_index=winner_index, personapas=self.personapas)
+            # OJO: self.state_machine NO es la maquina del juego, es la
+            # substate_machine de PlayState (es quien instancio a este
+            # subestado). WinState vive en la maquina de ARRIBA, la de
+            # src/game.py, que es justamente play_state.state_machine.
+            self.play_state.state_machine.change(
+                "win",
+                play_state=self.play_state,
+                winner_index=winner_index,
+                personapas=self.personapas,
+            )
         else:
             # Siguiente ronda
             self.play_state.substate_machine.change("parkour", play_state=self.play_state, personapas=self.personapas)
@@ -73,7 +115,10 @@ class ScoreState(BaseState):
         self.anim_time += dt
 
     def render(self, surface: pygame.Surface) -> None:
-        surface.fill((20, 22, 32)) # Fondo oscuro estilo UI
+        if self.stripes_surface is None or self.stripes_surface.get_size() != surface.get_size():
+            self.stripes_surface = self._generate_diagonal_stripes(*surface.get_size())
+
+        surface.blit(self.stripes_surface, (0, 0))  # Fondo de franjas, estilo del menú
 
         for i, podio in enumerate(self.podios):
             # Dibujar el podio (barra)
