@@ -1,23 +1,24 @@
 """MenuState: menú principal con estilo tipo Fall Guys — franjas
-diagonales de colores saturados, texto grueso con contorno, y botones
-redondeados con borde marcado."""
+diagonales de colores saturados, texto grueso con contorno, botones
+redondeados con borde marcado, Personapas de fondo con IA simple, y un
+tween al confirmar "Jugar" que reordena los botones."""
 
 import math
 import random
 
+import numpy as np
 import pygame
 
 from gale.state import BaseState
 
 from src.objects.personapa import Personapa
+from src.objects.sprite_animation import SpriteAnimation
 
 import settings
 
 
 OPTIONS = ["JUGAR", "SALIR"]
 
-# Paleta tipo Fall Guys: azul vibrante de fondo, franjas alternadas,
-# amarillo para resaltar lo seleccionado
 STRIPE_COLOR_A = (58, 134, 222)
 STRIPE_COLOR_B = (44, 108, 191)
 OUTLINE_COLOR = (20, 20, 30)
@@ -31,9 +32,17 @@ TITLE_FONT_PATH = "assets/fonts/Bloom-Regular.otf"
 BUTTON_FONT_PATH = "assets/fonts/Hansief.otf"
 
 MENU_PERSONAPA_COUNT = 4
-MENU_PERSONAPA_MARGIN = 30       # no se acercan a menos de esto del borde
-MENU_PERSONAPA_SPEED = 90        # más lento que en el juego real, para que se vea "de fondo"
-DIRECTION_CHANGE_RANGE = (1.5, 3.5)  # segundos entre cambios de rumbo al azar
+MENU_PERSONAPA_MARGIN = 30
+MENU_PERSONAPA_SPEED = 90
+DIRECTION_CHANGE_RANGE = (1.5, 3.5)
+FREEZE_DURATION = 3.0       # segundos quietos tras chocar
+WIGGLE_DURATION = 0.5       # segundos de meneo antes de retomar camino
+WIGGLE_AMPLITUDE = 4        # qué tanto se menea, en píxeles
+WIGGLE_FREQUENCY = 30       # qué tan rápido menea
+MENU_PERSONAPA_VISUAL_SCALE = 4.0  # solo el dibujo; el tamaño de colisión no cambia
+
+BUTTON_TWEEN_DURATION = 0.35  # segundos que tarda la animación
+BUTTON_EDGE_MARGIN = 30       # separación de los botones respecto al borde, ya confirmado
 
 
 class MenuState(BaseState):
@@ -50,64 +59,36 @@ class MenuState(BaseState):
         self.selected_index = 0
         self._time = 0.0
 
+        self._title_surface = self._render_text_with_soft_shadow(
+            self._title_font, "HOT POTATO CHIP BAG", TITLE_COLOR
+        )
+        self._button_label_surfaces = {}
+        for option in OPTIONS:
+            self._button_label_surfaces[(option, False)] = self._render_text_with_soft_shadow(
+                self._button_font, option, BUTTON_TEXT_IDLE, letter_spacing=4
+            )
+            self._button_label_surfaces[(option, True)] = self._render_text_with_soft_shadow(
+                self._button_font, option, BUTTON_TEXT_SELECTED, letter_spacing=4
+            )
+
+        # "main" -> "confirming" -> "confirm" -> "returning" -> "main"
+        self.button_state = "main"
+        self.button_tween_t = 0.0  # 0 = layout normal, 1 = layout confirmado
+
         self._init_menu_personapas()
 
-    def _init_menu_personapas(self) -> None:
-        """4 Personapas de adorno en el fondo del menú: IA simple que
-        camina en una dirección, cambia de rumbo cada rato, rebota en
-        el margen del borde, y se empuja con las demás si chocan."""
-        self.menu_personapas: list[Personapa] = []
-        self._menu_personapa_timers: list[float] = []
-
-        margin = MENU_PERSONAPA_MARGIN
-        for _ in range(MENU_PERSONAPA_COUNT):
-            p = Personapa()
-            p.max_speed = MENU_PERSONAPA_SPEED
-            p.position = pygame.Vector2(
-                random.uniform(margin, self.width - margin - p.size),
-                random.uniform(margin, self.height - margin - p.size),
-            )
-            p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
-
-            self.menu_personapas.append(p)
-            self._menu_personapa_timers.append(random.uniform(*DIRECTION_CHANGE_RANGE))
-
-    def _update_menu_personapas(self, dt: float) -> None:
-        margin = MENU_PERSONAPA_MARGIN
-
-        for i, p in enumerate(self.menu_personapas):
-            # cambia de rumbo al azar cada cierto tiempo, para que no
-            # caminen en línea recta todo el rato
-            self._menu_personapa_timers[i] -= dt
-            if self._menu_personapa_timers[i] <= 0:
-                self._menu_personapa_timers[i] = random.uniform(*DIRECTION_CHANGE_RANGE)
-                p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
-
-            p.move(dt)
-
-            # rebote al llegar al margen del borde de la ventana
-            min_x, max_x = margin, self.width - margin - p.size
-            min_y, max_y = margin, self.height - margin - p.size
-
-            if p.position.x < min_x:
-                p.position.x = min_x
-                p.move_intent.x = abs(p.move_intent.x)
-            elif p.position.x > max_x:
-                p.position.x = max_x
-                p.move_intent.x = -abs(p.move_intent.x)
-
-            if p.position.y < min_y:
-                p.position.y = min_y
-                p.move_intent.y = abs(p.move_intent.y)
-            elif p.position.y > max_y:
-                p.position.y = max_y
-                p.move_intent.y = -abs(p.move_intent.y)
-
-        # colisión entre ellas mismas, reutilizando lo que ya existe en Personapa
-        for i, a in enumerate(self.menu_personapas):
-            for b in self.menu_personapas[i + 1:]:
-                a.handle_collision(b)
-                b.handle_collision(a)
+        self._walk_right_animation = SpriteAnimation(
+            "assets/sprites/personapa_walk_right.png",
+            frame_width=32, frame_height=32, frame_count=6, fps=8,
+        )
+        self._idle_animation = SpriteAnimation(
+            "assets/sprites/personapa_idle.png",
+            frame_width=32, frame_height=32, frame_count=7, columns=3, fps=6,
+        )
+        self._walk_up_animation = SpriteAnimation(
+            "assets/sprites/personapa_walk_up.png",
+            frame_width=32, frame_height=32, frame_count=4, fps=8,
+        )
 
     def _load_font(self, font_path: str, size: int) -> pygame.font.Font:
         if font_path:
@@ -120,9 +101,134 @@ class MenuState(BaseState):
         )
         return pygame.font.Font(fallback_path, size)
 
+    # --- Personapas de fondo, con IA + freeze/wiggle al chocar ---
+
+    def _init_menu_personapas(self) -> None:
+        self.menu_personapas: list[Personapa] = []
+        self._menu_personapa_state: list[str] = []       # "moving" | "frozen" | "wiggling"
+        self._menu_personapa_state_timer: list[float] = []
+        self._menu_personapa_dir_timer: list[float] = []
+        self._menu_personapa_anim_time: list[float] = []
+
+        margin = MENU_PERSONAPA_MARGIN
+        for _ in range(MENU_PERSONAPA_COUNT):
+            p = Personapa()
+            p.max_speed = MENU_PERSONAPA_SPEED
+            p.position = pygame.Vector2(
+                random.uniform(margin, self.width - margin - p.size),
+                random.uniform(margin, self.height - margin - p.size),
+            )
+            p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+
+            self.menu_personapas.append(p)
+            self._menu_personapa_state.append("moving")
+            self._menu_personapa_state_timer.append(0.0)
+            self._menu_personapa_dir_timer.append(random.uniform(*DIRECTION_CHANGE_RANGE))
+            self._menu_personapa_anim_time.append(random.uniform(0, 1))  # desfasadas entre sí
+
+    def _update_menu_personapas(self, dt: float) -> None:
+        margin = MENU_PERSONAPA_MARGIN
+
+        for i, p in enumerate(self.menu_personapas):
+            state = self._menu_personapa_state[i]
+
+            # el reloj de animación avanza siempre, así el idle también
+            # se ve "vivo" mientras están quietas o meneándose
+            self._menu_personapa_anim_time[i] += dt
+
+            if state == "moving":
+                self._menu_personapa_dir_timer[i] -= dt
+                if self._menu_personapa_dir_timer[i] <= 0:
+                    self._menu_personapa_dir_timer[i] = random.uniform(*DIRECTION_CHANGE_RANGE)
+                    p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+
+                p.move(dt)
+
+                min_x, max_x = margin, self.width - margin - p.size
+                min_y, max_y = margin, self.height - margin - p.size
+
+                if p.position.x < min_x:
+                    p.position.x = min_x
+                    p.move_intent.x = abs(p.move_intent.x)
+                elif p.position.x > max_x:
+                    p.position.x = max_x
+                    p.move_intent.x = -abs(p.move_intent.x)
+
+                if p.position.y < min_y:
+                    p.position.y = min_y
+                    p.move_intent.y = abs(p.move_intent.y)
+                elif p.position.y > max_y:
+                    p.position.y = max_y
+                    p.move_intent.y = -abs(p.move_intent.y)
+
+            elif state == "frozen":
+                p.move_intent = pygame.Vector2(0, 0)
+                p.move(dt)  # dt=0 en la práctica para posición, pero deja que el dash_trail siga apagándose
+                self._menu_personapa_state_timer[i] -= dt
+                if self._menu_personapa_state_timer[i] <= 0:
+                    self._menu_personapa_state[i] = "wiggling"
+                    self._menu_personapa_state_timer[i] = WIGGLE_DURATION
+
+            elif state == "wiggling":
+                p.move_intent = pygame.Vector2(0, 0)
+                p.move(dt)
+                self._menu_personapa_state_timer[i] -= dt
+                if self._menu_personapa_state_timer[i] <= 0:
+                    self._menu_personapa_state[i] = "moving"
+                    self._menu_personapa_dir_timer[i] = random.uniform(*DIRECTION_CHANGE_RANGE)
+                    p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+
+        # colisión entre ellas: al primer contacto (mientras iban
+        # "moving"), se congelan 3s antes de menearse y seguir
+        for i, a in enumerate(self.menu_personapas):
+            for j in range(i + 1, len(self.menu_personapas)):
+                b = self.menu_personapas[j]
+                if not a.collides_with(b):
+                    continue
+
+                a.handle_collision(b)
+                b.handle_collision(a)
+
+                if self._menu_personapa_state[i] == "moving":
+                    self._menu_personapa_state[i] = "frozen"
+                    self._menu_personapa_state_timer[i] = FREEZE_DURATION
+                if self._menu_personapa_state[j] == "moving":
+                    self._menu_personapa_state[j] = "frozen"
+                    self._menu_personapa_state_timer[j] = FREEZE_DURATION
+
+    def _render_menu_personapas(self, surface: pygame.Surface, alpha: int = 255) -> None:
+        for i, p in enumerate(self.menu_personapas):
+            state = self._menu_personapa_state[i]
+
+            offset_x = 0
+            if state == "wiggling":
+                t = self._menu_personapa_state_timer[i]
+                offset_x = math.sin(t * WIGGLE_FREQUENCY) * WIGGLE_AMPLITUDE
+
+            center = (p.get_rect().centerx + offset_x, p.get_rect().centery)
+
+            if state == "moving" and abs(p.move_intent.x) > abs(p.move_intent.y) and abs(p.move_intent.x) > 0.1:
+                va_a_la_izquierda = p.move_intent.x < 0
+                frame = self._walk_right_animation.get_frame(
+                    self._menu_personapa_anim_time[i], flipped=va_a_la_izquierda
+                )
+            elif state == "moving" and p.move_intent.y < -0.1 and abs(p.move_intent.y) >= abs(p.move_intent.x):
+                frame = self._walk_up_animation.get_frame(self._menu_personapa_anim_time[i])
+            else:
+                va_a_la_izquierda = p.facing_direction.x < 0
+                frame = self._idle_animation.get_frame(
+                    self._menu_personapa_anim_time[i], flipped=va_a_la_izquierda
+                )
+
+            render_size = int(p.size * MENU_PERSONAPA_VISUAL_SCALE)
+            frame = pygame.transform.scale(frame, (render_size, render_size))
+            frame.set_alpha(alpha)
+            rect = frame.get_rect(center=center)
+            surface.blit(frame, rect)
+
+    # --- Franjas de fondo ---
+
     def _generate_diagonal_stripes(self) -> pygame.Surface:
-        """Franjas diagonales de dos colores, cubriendo TODO el fondo
-        (patrón sólido, estilo Fall Guys) — no líneas finas sobre foto."""
         surface = pygame.Surface((self.width, self.height))
         band_width = 46
 
@@ -143,58 +249,88 @@ class MenuState(BaseState):
 
         return surface
 
-    def _render_outlined_text(self, font, text, color, outline_width=3, letter_spacing=0) -> pygame.Surface:
+    def _build_text_surface(self, font, text, color, letter_spacing=0) -> pygame.Surface:
+        """Arma el texto (con letter_spacing opcional) sin ningún borde,
+        solo el texto liso en el color dado."""
         if letter_spacing == 0:
-            # camino simple, sin separación extra (como antes)
-            base = font.render(text, True, color)
-            padding = outline_width * 2
-            combined = pygame.Surface(
-                (base.get_width() + padding * 2, base.get_height() + padding * 2),
-                pygame.SRCALPHA,
-            )
-            outline = font.render(text, True, OUTLINE_COLOR)
-            for dx in range(-outline_width, outline_width + 1):
-                for dy in range(-outline_width, outline_width + 1):
-                    if dx == 0 and dy == 0:
-                        continue
-                    combined.blit(outline, (padding + dx, padding + dy))
-            combined.blit(base, (padding, padding))
-            return combined
+            return font.render(text, True, color)
 
-        # con letter_spacing: se renderiza carácter por carácter y se
-        # van pegando uno junto al otro con el espacio extra en medio
-        char_surfaces = []
-        total_width = 0
-        max_height = 0
-        for ch in text:
-            char_base = font.render(ch, True, color)
-            char_outline = font.render(ch, True, OUTLINE_COLOR)
-            char_surfaces.append((char_base, char_outline))
-            total_width += char_base.get_width() + letter_spacing
-            max_height = max(max_height, char_base.get_height())
-        total_width -= letter_spacing  # no agregar espacio después de la última letra
-
-        padding = outline_width * 2
-        combined = pygame.Surface(
-            (total_width + padding * 2, max_height + padding * 2),
-            pygame.SRCALPHA,
-        )
-
-        x = padding
-        for char_base, char_outline in char_surfaces:
-            for dx in range(-outline_width, outline_width + 1):
-                for dy in range(-outline_width, outline_width + 1):
-                    if dx == 0 and dy == 0:
-                        continue
-                    combined.blit(char_outline, (x + dx, padding + dy))
-            combined.blit(char_base, (x, padding))
-            x += char_base.get_width() + letter_spacing
-
+        char_surfaces = [font.render(ch, True, color) for ch in text]
+        total_width = sum(c.get_width() for c in char_surfaces) + letter_spacing * (len(text) - 1)
+        max_height = max(c.get_height() for c in char_surfaces)
+        combined = pygame.Surface((total_width, max_height), pygame.SRCALPHA)
+        x = 0
+        for c in char_surfaces:
+            combined.blit(c, (x, 0))
+            x += c.get_width() + letter_spacing
         return combined
+
+    @staticmethod
+    def _blur_alpha(alpha: np.ndarray, radius: int) -> np.ndarray:
+        """Blur de verdad (box blur) aplicado al canal alfa: convoluciona
+        con un kernel uniforme, primero por filas y luego por columnas."""
+        kernel_size = radius * 2 + 1
+        kernel = np.ones(kernel_size) / kernel_size
+        blurred = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), axis=0, arr=alpha)
+        blurred = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), axis=1, arr=blurred)
+        return blurred
+
+    def _blur_surface(self, surf: pygame.Surface, color, radius: int = 3) -> pygame.Surface:
+        alpha = pygame.surfarray.pixels_alpha(surf).astype(np.float32).copy()
+        blurred_alpha = np.clip(self._blur_alpha(alpha, radius), 0, 255).astype(np.uint8)
+
+        result = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+        rgb = np.zeros((surf.get_width(), surf.get_height(), 3), dtype=np.uint8)
+        rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2] = color[0], color[1], color[2]
+        pygame.surfarray.blit_array(result, rgb)
+
+        alpha_view = pygame.surfarray.pixels_alpha(result)
+        alpha_view[:] = blurred_alpha
+        del alpha_view  # libera el lock de surfarray
+
+        return result
+
+    def _render_text_with_soft_shadow(
+        self, font, text, color, letter_spacing=0,
+        shadow_alpha=130, shadow_offset=(0, 3), blur_radius=3,
+    ) -> pygame.Surface:
+        base = self._build_text_surface(font, text, color, letter_spacing)
+        shadow_raw = self._build_text_surface(font, text, (0, 0, 0, shadow_alpha), letter_spacing)
+
+        # margen extra ANTES de difuminar, si no el blur se corta feo
+        # justo en el borde del texto en vez de desvanecerse
+        pad = blur_radius * 4
+        padded_shadow = pygame.Surface(
+            (shadow_raw.get_width() + pad * 2, shadow_raw.get_height() + pad * 2), pygame.SRCALPHA
+        )
+        padded_shadow.blit(shadow_raw, (pad, pad))
+        blurred_shadow = self._blur_surface(padded_shadow, (0, 0, 0), radius=blur_radius)
+
+        combined = pygame.Surface(blurred_shadow.get_size(), pygame.SRCALPHA)
+        combined.blit(blurred_shadow, shadow_offset)
+        combined.blit(base, (pad, pad))
+        return combined
+
+    # --- Loop principal ---
 
     def update(self, dt: float) -> None:
         self._time += dt
         self._update_menu_personapas(dt)
+        self._update_button_tween(dt)
+
+    def _update_button_tween(self, dt: float) -> None:
+        if self.button_state == "confirming":
+            self.button_tween_t = min(1.0, self.button_tween_t + dt / BUTTON_TWEEN_DURATION)
+            if self.button_tween_t >= 1.0:
+                self.button_state = "confirm"
+        elif self.button_state == "returning":
+            self.button_tween_t = max(0.0, self.button_tween_t - dt / BUTTON_TWEEN_DURATION)
+            if self.button_tween_t <= 0.0:
+                self.button_state = "main"
+
+    @staticmethod
+    def _ease_out_cubic(t: float) -> float:
+        return 1 - (1 - t) ** 3
 
     def on_input(self, input_id, input_data) -> None:
         if not getattr(input_data, "pressed", False):
@@ -208,40 +344,73 @@ class MenuState(BaseState):
             self._confirm_selection()
 
     def _confirm_selection(self) -> None:
-        selected = OPTIONS[self.selected_index]
-        if selected == "JUGAR":
-            self.state_machine.change("play")
-        elif selected == "SALIR":
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
+        if self.button_state not in ("main", "confirm"):
+            return  # ignora input mientras el tween está a medias
+
+        if self.selected_index == 0:  # Jugar
+            if self.button_state == "main":
+                self.button_state = "confirming"
+            else:  # ya estaba confirmado -> arranca el juego de verdad
+                self.state_machine.change("play")
+        else:  # Salir / flecha de regreso
+            if self.button_state == "confirm":
+                self.button_state = "returning"
+            else:
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
 
     def render(self, surface: pygame.Surface) -> None:
         surface.blit(self.stripes_surface, (0, 0))
 
-        for p in self.menu_personapas:
-            p.render(surface)
+        self._render_menu_personapas(surface)
 
-        title = self._render_outlined_text(self._title_font, "HOT POTATO CHIP BAG", TITLE_COLOR)
-        title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 20))
-        surface.blit(title, title_rect)
+        eased = self._ease_out_cubic(self.button_tween_t)
+        title_alpha = int(255 * (1 - eased))  # solo el título se desvanece
 
+        if title_alpha > 0:
+            title = self._title_surface
+            title.set_alpha(title_alpha)
+            title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 20))
+            surface.blit(title, title_rect)
+
+        self._render_buttons(surface, eased)
+
+    def _render_buttons(self, surface: pygame.Surface, eased: float) -> None:
         button_width, button_height = 260, 70
         spacing = 24
         start_y = self.height // 3 + 90
+        margin = BUTTON_EDGE_MARGIN
+
+        # posiciones de arranque (layout normal, apiladas al centro)
+        main_positions = [
+            (self.width // 2, start_y),
+            (self.width // 2, start_y + button_height + spacing),
+        ]
+
+        # posiciones finales al confirmar: pegadas abajo, una en cada esquina
+        confirm_positions = [
+            (self.width - margin - button_width // 2, self.height - margin - button_height // 2),
+            (margin + button_width // 2, self.height - margin - button_height // 2),
+        ]
+
+        showing_arrow = self.button_state != "main"
 
         for i, option in enumerate(OPTIONS):
             is_selected = i == self.selected_index
-
-            # rebotecito sutil en el botón seleccionado, para que se
-            # sienta vivo/energético (como los menús de Fall Guys)
             bounce = math.sin(self._time * 6) * 4 if is_selected else 0
+
+            main_x, main_y = main_positions[i]
+            target_x, target_y = confirm_positions[i]
+            center = (
+                main_x + (target_x - main_x) * eased,
+                main_y + (target_y - main_y) * eased + bounce,
+            )
 
             fill = BUTTON_FILL_SELECTED if is_selected else BUTTON_FILL_IDLE
             text_color = BUTTON_TEXT_SELECTED if is_selected else BUTTON_TEXT_IDLE
 
             rect = pygame.Rect(0, 0, button_width, button_height)
-            rect.center = (self.width // 2, start_y + i * (button_height + spacing) + bounce)
+            rect.center = center
 
-            # sombra del botón
             shadow_rect = rect.copy()
             shadow_rect.y += 6
             pygame.draw.rect(surface, (20, 20, 30, 120), shadow_rect, border_radius=18)
@@ -249,8 +418,19 @@ class MenuState(BaseState):
             pygame.draw.rect(surface, fill, rect, border_radius=18)
             pygame.draw.rect(surface, OUTLINE_COLOR, rect, width=4, border_radius=18)
 
-            label = self._render_outlined_text(
-                self._button_font, option, text_color, outline_width=2, letter_spacing=4
-            )
-            label_rect = label.get_rect(center=rect.center)
-            surface.blit(label, label_rect)
+            if i == 1 and showing_arrow:
+                self._draw_back_arrow(surface, rect, text_color)
+            else:
+                label = self._button_label_surfaces[(option, is_selected)]
+                label_rect = label.get_rect(center=rect.center)
+                surface.blit(label, label_rect)
+
+    def _draw_back_arrow(self, surface: pygame.Surface, rect: pygame.Rect, color) -> None:
+        cx, cy = rect.center
+        size = 16
+        points = [
+            (cx + size, cy - size),
+            (cx - size, cy),
+            (cx + size, cy + size),
+        ]
+        pygame.draw.lines(surface, color, False, points, width=6)
