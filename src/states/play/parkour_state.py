@@ -242,7 +242,7 @@ class ParkourState(BaseState):
             text_color = (245, 245, 245)
 
         # Texto de etiqueta pequeñita ("PAPA HOT")
-        label_surf = self._hud_font_small.render("TIEMPO PAPA", True, (160, 165, 180))
+        label_surf = self._hud_font_small.render("¡PASA LA PAPA!", True, (160, 165, 180))
         hud_surface.blit(label_surf, (bar_x, 8))
 
         # Texto principal del reloj

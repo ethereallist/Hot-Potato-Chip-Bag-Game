@@ -1,6 +1,10 @@
 """PlayState: estado de partida. Usa HierarchicalState de Gale para
-componer los subestados (HatSelectionState -> ParkourState -> ScoreState
--> nueva ronda).
+componer los subestados (ParkourState -> ScoreState -> nueva ronda).
+
+La selección de sombreros YA NO pasa por aquí: ahora ocurre dentro de
+MenuState, encima del propio menú (papas + botones), antes de llamar
+a state_machine.change("play", ...). Las personapas que llegan aquí
+ya traen su hat_index asignado.
 
 IMPORTANTE: HierarchicalState ya delega enter/on_input/update/render al
 substate activo automáticamente. Si sobreescribimos alguno de esos
@@ -12,7 +16,6 @@ import pygame
 
 from gale.state import HierarchicalState, BaseState, StateMachine
 
-from src.states.play.hat_selection_state import HatSelectionState
 from src.states.play.parkour_state import ParkourState
 from src.states.play.score_state import ScoreState
 
@@ -22,7 +25,6 @@ class PlayState(HierarchicalState):
         super().__init__(
             state_machine,
             substates={
-                "hat_selection": HatSelectionState,
                 "parkour": ParkourState,
                 "score": ScoreState,
                 "base": BaseState,
@@ -39,10 +41,10 @@ class PlayState(HierarchicalState):
         self.target_score = int(3 + 1.5 * (self.player_count - 2))
         self.scores = [0 for _ in range(self.player_count)]
         
-        # se reenvía personapas (si vino del menú) junto con play_state,
-        # si no, change() solo pasaba play_state y se perdía lo demás
-        # Primero: selección de sombreros, luego ParkourState
-        self.substate_machine.change("hat_selection", play_state=self, personapas=kwargs.get("personapas"))
+        # se reenvía personapas (ya con su sombrero elegido en el menú)
+        # junto con play_state, si no, change() solo pasaba play_state y
+        # se perdía lo demás
+        self.substate_machine.change("parkour", play_state=self, personapas=kwargs.get("personapas"))
         
     def are_rounds_over(self) -> bool:
         return self.rounds >= self.max_rounds

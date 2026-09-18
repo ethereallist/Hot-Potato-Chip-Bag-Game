@@ -13,6 +13,7 @@ from gale.state import BaseState
 
 from src.objects.personapa import Personapa
 from src.objects.sprite_animation import SpriteAnimation
+from src.objects.hat_sprites import HatSprites
 
 import settings
 
@@ -55,6 +56,9 @@ class MenuState(BaseState):
         pygame.font.init()
         self._title_font = self._load_font(TITLE_FONT_PATH, 46)
         self._button_font = self._load_font(BUTTON_FONT_PATH, 36)
+        self._hat_title_font = self._load_font(BUTTON_FONT_PATH, 40)
+        self._hat_player_font = self._load_font(BUTTON_FONT_PATH, 28)
+        self._hat_hint_font = self._load_font(BUTTON_FONT_PATH, 18)
 
         self.selected_index = 0
         self._time = 0.0
@@ -64,16 +68,30 @@ class MenuState(BaseState):
         )
         self._button_label_surfaces = {}
         for option in OPTIONS:
-            self._button_label_surfaces[(option, False)] = self._render_text_with_soft_shadow(
-                self._button_font, option, BUTTON_TEXT_IDLE, letter_spacing=4
+            # Texto plano, sin sombra difuminada ni espaciado extra: igual
+            # tipografía/estilo que "Selecciona tu Sombrero", para que todo
+            # se vea consistente salvo el título principal.
+            self._button_label_surfaces[(option, False)] = self._button_font.render(
+                option, True, BUTTON_TEXT_IDLE
             )
-            self._button_label_surfaces[(option, True)] = self._render_text_with_soft_shadow(
-                self._button_font, option, BUTTON_TEXT_SELECTED, letter_spacing=4
+            self._button_label_surfaces[(option, True)] = self._button_font.render(
+                option, True, BUTTON_TEXT_SELECTED
             )
 
         # "main" -> "confirming" -> "confirm" -> "returning" -> "main"
         self.button_state = "main"
         self.button_tween_t = 0.0  # 0 = layout normal, 1 = layout confirmado
+
+        # Selección de sombreros: se activa al confirmar "Jugar" por
+        # segunda vez, en vez de arrancar PlayState de una. Se renderiza
+        # ENCIMA de esta misma pantalla (franjas + papas + botones ya
+        # en las esquinas), y el sombrero que se está mirando se aplica
+        # en vivo a la papa del jugador que le toca elegir.
+        self.selecting_hats = False
+        self.hat_sprites = None
+        self.hat_current_player = 0
+        self.hat_available_indices: list[int] = []
+        self.hat_cursor = 0
 
         self._init_menu_personapas()
 
@@ -226,6 +244,57 @@ class MenuState(BaseState):
             rect = frame.get_rect(center=center)
             surface.blit(frame, rect)
 
+            if p.hat_index >= 0 and p.hat_sprites is not None:
+                self._render_hat_on_personapa(surface, p, rect)
+
+    def _get_hat_direction_index(self, move_intent: pygame.Vector2) -> tuple:
+        """Igual que PersonapaSpriteRenderer._get_hat_direction_index:
+        determina qué frame de sombrero usar según hacia dónde se mueve
+        la papa (0=frente, 1=derecha/izquierda volteado, 2=arriba,
+        4/5=diagonales abajo)."""
+        if move_intent.length_squared() < 0.01:
+            return 0, False
+
+        norm = move_intent.normalize()
+        x, y = norm.x, norm.y
+
+        if abs(x) > abs(y):
+            if x > 0:
+                return 1, True    # Derecha: frame 1 volteado
+            else:
+                return 1, False   # Izquierda: frame 1 tal cual
+        elif y < -0.1:
+            return 2, False
+        elif y > 0.1:
+            if x < -0.3:
+                return 4, False
+            elif x > 0.3:
+                return 5, False
+            else:
+                return 0, False
+        else:
+            return 0, False
+
+    def _render_hat_on_personapa(self, surface: pygame.Surface, personapa: Personapa, character_rect: pygame.Rect) -> None:
+        """Dibuja el sombrero encima de una papa del menú, con el mismo
+        criterio de tamaño/posición que PersonapaSpriteRenderer._render_hat,
+        adaptado a la escala más grande de las papas del menú."""
+        frame_idx, flipped = self._get_hat_direction_index(personapa.move_intent)
+        hat_frame = personapa.hat_sprites.get_hat_frame(personapa.hat_index, frame_idx, flipped=flipped)
+
+        if hat_frame is None:
+            return
+
+        hat_size = int(48 * MENU_PERSONAPA_VISUAL_SCALE) + 16
+        hat_frame = pygame.transform.scale(hat_frame, (hat_size, hat_size))
+
+        overlap = hat_size // 4 + 46
+        hat_rect = hat_frame.get_rect()
+        hat_rect.centerx = character_rect.centerx
+        hat_rect.bottom = character_rect.top + overlap
+
+        surface.blit(hat_frame, hat_rect)
+
     # --- Franjas de fondo ---
 
     def _generate_diagonal_stripes(self) -> pygame.Surface:
@@ -336,6 +405,10 @@ class MenuState(BaseState):
         if not getattr(input_data, "pressed", False):
             return
 
+        if self.selecting_hats:
+            self._on_input_hat_selection(input_id)
+            return
+
         if input_id == "p1_up":
             self.selected_index = (self.selected_index - 1) % len(OPTIONS)
         elif input_id == "p1_down":
@@ -343,15 +416,71 @@ class MenuState(BaseState):
         elif input_id == "p1_main":
             self._confirm_selection()
 
+    def _on_input_hat_selection(self, input_id: str) -> None:
+        """Cualquier left/right/main de cualquier jugador cuenta como
+        navegar/confirmar para quien le toca elegir ahora (se "pasa el
+        control"), igual que en el antiguo HatSelectionState."""
+        if self.hat_current_player >= len(self.menu_personapas):
+            return
+        if not self.hat_available_indices:
+            return
+
+        if input_id.endswith("_left"):
+            self.hat_cursor = (self.hat_cursor - 1) % len(self.hat_available_indices)
+            self._apply_hat_preview()
+
+        elif input_id.endswith("_right"):
+            self.hat_cursor = (self.hat_cursor + 1) % len(self.hat_available_indices)
+            self._apply_hat_preview()
+
+        elif input_id.endswith("_main"):
+            chosen_hat_index = self.hat_available_indices[self.hat_cursor]
+
+            self.menu_personapas[self.hat_current_player].hat_index = chosen_hat_index
+            self.hat_available_indices.remove(chosen_hat_index)
+
+            self.hat_current_player += 1
+            self.hat_cursor = 0
+
+            if self.hat_current_player >= len(self.menu_personapas):
+                # todos eligieron: recién ahora arranca el juego de verdad
+                self.state_machine.change("play", personapas=self.menu_personapas)
+            else:
+                self._apply_hat_preview()  # muestra en vivo la opción actual al siguiente jugador
+
+    def _apply_hat_preview(self) -> None:
+        """Aplica el sombrero actualmente resaltado en el carrusel a la
+        papa del jugador en turno, para verlo puesto en tiempo real
+        mientras navega, antes de confirmar."""
+        if not self.hat_available_indices:
+            return
+        hat_index = self.hat_available_indices[self.hat_cursor]
+        self.menu_personapas[self.hat_current_player].hat_index = hat_index
+
+    def _start_hat_selection(self) -> None:
+        """Se dispara al confirmar "Jugar" la segunda vez: en vez de
+        arrancar PlayState de una, activa la selección de sombreros
+        encima de esta misma pantalla."""
+        self.selecting_hats = True
+        self.hat_sprites = HatSprites()
+
+        for p in self.menu_personapas:
+            p.hat_sprites = self.hat_sprites
+            p.hat_index = -1
+
+        self.hat_current_player = 0
+        self.hat_available_indices = list(range(self.hat_sprites.get_hat_count()))
+        self.hat_cursor = 0
+        self._apply_hat_preview()
+
     def _confirm_selection(self) -> None:
         if self.button_state not in ("main", "confirm"):
             return  # ignora input mientras el tween está a medias
 
         if self.selected_index == 0:  # Jugar
             if self.button_state == "main":
-                self.button_state = "confirming"
-            else:  # ya estaba confirmado -> arranca el juego de verdad
-                self.state_machine.change("play", personapas=self.menu_personapas)
+                self.button_state = "confirming"  # los botones igual animan a las esquinas
+                self._start_hat_selection()  # pero la selección ya arranca en esta primera confirmación
         else:  # Salir / flecha de regreso
             if self.button_state == "confirm":
                 self.button_state = "returning"
@@ -369,10 +498,80 @@ class MenuState(BaseState):
         if title_alpha > 0:
             title = self._title_surface
             title.set_alpha(title_alpha)
-            title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 20))
+            title_rect = title.get_rect(center=(self.width // 2, self.height // 3 - 30))
             surface.blit(title, title_rect)
 
         self._render_buttons(surface, eased)
+
+        if self.selecting_hats:
+            self._render_hat_selection_overlay(surface)
+
+    def _render_hat_selection_overlay(self, surface: pygame.Surface) -> None:
+        """Panel de selección de sombreros, encima de las franjas, las
+        papas caminando y los botones ya en las esquinas."""
+
+        title_text = self._hat_title_font.render("Selecciona tu Sombrero", True, "white")
+        title_rect = title_text.get_rect(center=(self.width // 2, 40))
+        surface.blit(title_text, title_rect)
+
+        if self.hat_current_player < len(self.menu_personapas):
+            player_text = self._hat_player_font.render(
+                f"Jugador {self.hat_current_player + 1}", True, TITLE_COLOR
+            )
+            player_rect = player_text.get_rect(center=(self.width // 2, 80))
+            surface.blit(player_text, player_rect)
+
+        self._render_hat_carousel(surface)
+
+        hint_text = self._hat_hint_font.render(
+            "Izquierda/Derecha: Navegar | Botón principal: Seleccionar", True, "white"
+        )
+        hint_rect = hint_text.get_rect(center=(self.width // 2, 120))
+        surface.blit(hint_text, hint_rect)
+
+    def _render_hat_carousel(self, surface: pygame.Surface) -> None:
+        """Franja angosta con los sombreros todavía disponibles, arriba
+        de las papas para no taparlas ni los botones de las esquinas."""
+
+        if not self.hat_available_indices:
+            return
+
+        hat_previews = self.hat_sprites.get_all_hat_preview_frames()
+
+        hat_size = 56
+        spacing = 80
+        visible_hats = 5
+        carousel_y = 165
+
+        num_available = len(self.hat_available_indices)
+        start_pos = max(0, self.hat_cursor - visible_hats // 2)
+        start_pos = min(start_pos, max(0, num_available - visible_hats))
+
+        center_x = self.width // 2
+
+        for i in range(min(visible_hats, num_available - start_pos)):
+            list_pos = start_pos + i
+            hat_idx = self.hat_available_indices[list_pos]
+
+            offset = (i - visible_hats // 2) * spacing
+            x = center_x + offset
+            y = carousel_y
+
+            preview = hat_previews[hat_idx]
+            scaled = pygame.transform.scale(preview, (hat_size, hat_size))
+
+            rect = scaled.get_rect(center=(x, y))
+
+            # fondo semitransparente detrás de cada sombrero, para que se
+            # lea bien sobre las franjas y las papas de fondo
+            backdrop = pygame.Surface((hat_size + 12, hat_size + 12), pygame.SRCALPHA)
+            pygame.draw.rect(backdrop, (20, 20, 30, 160), backdrop.get_rect(), border_radius=10)
+            surface.blit(backdrop, backdrop.get_rect(center=(x, y)))
+
+            surface.blit(scaled, rect)
+
+            if list_pos == self.hat_cursor:
+                pygame.draw.rect(surface, TITLE_COLOR, rect.inflate(6, 6), width=3, border_radius=6)
 
     def _render_buttons(self, surface: pygame.Surface, eased: float) -> None:
         button_width, button_height = 260, 70
