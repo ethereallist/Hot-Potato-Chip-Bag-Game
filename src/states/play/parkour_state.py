@@ -1,6 +1,7 @@
 """ParkourState: los jugadores se mueven por el mapa y se lanzan/empujan
 para pasarse la papa caliente antes de que explote."""
 
+import math
 import random
 
 import pygame
@@ -34,7 +35,67 @@ COUNTDOWN_DURATION = 3.0
 ROUND_DURATION = 20.0
 SINK_START_DELAY = 6.0
 SINK_INTERVAL = 2.0
-PERSONAPA_VISUAL_SCALE = 2.0  # tamaño del sprite al dibujarlo; igual que MENU_PERSONAPA_VISUAL_SCALE del menú
+PERSONAPA_VISUAL_SCALE = 1.5  # tamaño del sprite al dibujarlo
+
+EXPLOSION_SHAKE_DURATION = 0.5    # segundos que tiembla la pantalla
+EXPLOSION_SHAKE_MAGNITUDE = 26    # qué tan fuerte tiembla, en píxeles
+EXPLOSION_BLACKOUT_DELAY = 0.6      # espera esto antes de que el negro empiece a crecer, para que se vea la cascada completa
+EXPLOSION_BLACKOUT_DURATION = 1.1  # segundos que tarda el negro en cubrir todo, UNA VEZ que empieza
+
+# partículas que van de grandes a chicas: empiezan pocas y GRANDES, y
+# cada una se "parte" en varias más chicas, y esas otra vez en más
+# chicas todavía (4 generaciones: 0 grande -> 1 -> 2 -> 3 diminuta)
+EXPLOSION_BIG_PARTICLE_COUNT = 8
+EXPLOSION_CHILDREN_PER_SPLIT = 4
+EXPLOSION_MAX_GENERATION = 3
+EXPLOSION_SPLIT_DELAY = 0.15
+EXPLOSION_GEN_RADIUS = [24, 14, 8, 4]
+EXPLOSION_GEN_SPEED = [90, 150, 210, 280]
+EXPLOSION_GEN_LIFE = [0.9, 0.65, 0.45, 0.3]
+EXPLOSION_GEN_COLORS = [
+    (200, 40, 0),     # generación 0 (grande): rojo oscuro
+    (255, 120, 0),    # generación 1: naranja
+    (255, 180, 20),   # generación 2: ámbar
+    (255, 240, 120),  # generación 3 (diminuta): chispas casi blancas
+]
+
+
+class ExplosionParticle:
+    """Partícula de la explosión que sabe "partirse" en varias más
+    chicas después de EXPLOSION_SPLIT_DELAY segundos, hasta llegar a
+    EXPLOSION_MAX_GENERATION (ahí ya no se parte más, solo se apaga)."""
+
+    def __init__(self, x: float, y: float, vx: float, vy: float, generation: int) -> None:
+        self.x, self.y = x, y
+        self.vx, self.vy = vx, vy
+        self.generation = generation
+        self.radius = EXPLOSION_GEN_RADIUS[generation]
+        self.color = EXPLOSION_GEN_COLORS[generation]
+        self.life = EXPLOSION_GEN_LIFE[generation]
+        self.max_life = self.life
+        self.split_timer = EXPLOSION_SPLIT_DELAY if generation < EXPLOSION_MAX_GENERATION else None
+
+    def update(self, dt: float) -> None:
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.vx *= 0.985
+        self.vy *= 0.985
+        self.life -= dt
+        if self.split_timer is not None:
+            self.split_timer -= dt
+
+    @property
+    def should_split(self) -> bool:
+        return self.split_timer is not None and self.split_timer <= 0
+
+    @property
+    def is_alive(self) -> bool:
+        return self.life > 0
+
+    def render(self, surface: pygame.Surface) -> None:
+        t = max(0.0, self.life / self.max_life)
+        radius = max(1, int(self.radius * (0.6 + 0.4 * t)))
+        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), radius)
 
 
 class ParkourState(BaseState):
@@ -95,6 +156,15 @@ class ParkourState(BaseState):
 
         self._sprite_renderer = PersonapaSpriteRenderer()
         self._personapa_anim_time = [random.uniform(0, 1) for _ in self.personapas]
+
+        # --- Efecto de explosión (partículas + temblor + apagón) ---
+        self.round_ending = False
+        self.round_end_timer = 0.0
+        self.explosion_particles = None
+        self.blackout_center = None
+        self.blackout_progress = 0.0  # 0..1
+        self.screen_shake_timer = 0.0
+        self._round_ended = False
 
         random.choice(self.personapas).is_hot_potato = True
 
@@ -208,6 +278,10 @@ class ParkourState(BaseState):
         # el mando NO pasa por aquí: se sondea directo en update()
 
     def update(self, dt: float) -> None:
+        if self.round_ending:
+            self._update_explosion_effect(dt)
+            return
+
         if self.in_countdown:
             self.countdown_time_left -= dt
             return
@@ -230,8 +304,7 @@ class ParkourState(BaseState):
         self._update_tile_sinking(dt)
 
         if self.round_time_left <= 0:
-            self._explode_hot_potato()
-            self._end_round()
+            self._explode_hot_potato()  # dispara la secuencia; _end_round() se llama sola al terminar
         elif self._count_alive() <= 1:
             self._end_round()
 
@@ -351,6 +424,58 @@ class ParkourState(BaseState):
             if personapa.is_hot_potato and personapa.is_alive:
                 personapa.is_alive = False
                 self.death_log[i] = False
+                self._start_explosion_effect(personapa.get_rect().center)
+
+    def _start_explosion_effect(self, position: tuple) -> None:
+        self.round_ending = True
+        self.round_end_timer = 0.0
+        self.blackout_center = position
+        self.blackout_progress = 0.0
+        self.screen_shake_timer = EXPLOSION_SHAKE_DURATION
+        self._round_ended = False
+
+        self.explosion_particles: list[ExplosionParticle] = []
+        cx, cy = position
+        for _ in range(EXPLOSION_BIG_PARTICLE_COUNT):
+            self._spawn_explosion_particle(cx, cy, generation=0)
+
+    def _spawn_explosion_particle(self, x: float, y: float, generation: int, base_vx: float = 0.0, base_vy: float = 0.0) -> None:
+        speed = EXPLOSION_GEN_SPEED[generation]
+        direction = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
+        vx = base_vx * 0.3 + direction.x * speed
+        vy = base_vy * 0.3 + direction.y * speed
+        self.explosion_particles.append(ExplosionParticle(x, y, vx, vy, generation))
+
+    def _update_explosion_effect(self, dt: float) -> None:
+        self.round_end_timer += dt
+
+        if self.screen_shake_timer > 0:
+            self.screen_shake_timer -= dt
+
+        surviving = []
+        new_children = []
+        for p in self.explosion_particles:
+            p.update(dt)
+            if p.should_split:
+                for _ in range(EXPLOSION_CHILDREN_PER_SPLIT):
+                    new_children.append((p.x, p.y, p.generation + 1, p.vx, p.vy))
+                continue  # la partícula grande desaparece, la reemplazan sus hijas
+            if p.is_alive:
+                surviving.append(p)
+        self.explosion_particles = surviving
+        for x, y, gen, vx, vy in new_children:
+            self._spawn_explosion_particle(x, y, gen, vx, vy)
+
+        # el "apagón" negro espera un poco (para que se vea la cascada
+        # completa de partículas) y luego crece acelerando hasta cubrir
+        # toda la pantalla, y ahí se pasa a la puntuación
+        t = max(0.0, self.round_end_timer - EXPLOSION_BLACKOUT_DELAY) / EXPLOSION_BLACKOUT_DURATION
+        t = min(1.0, t)
+        self.blackout_progress = t * t
+
+        if t >= 1.0 and not self._round_ended:
+            self._round_ended = True
+            self._end_round()
 
     def _count_alive(self) -> int:
         return sum(1 for p in self.personapas if p.is_alive)
@@ -363,6 +488,10 @@ class ParkourState(BaseState):
         )
 
     def render(self, surface: pygame.Surface) -> None:
+        if self.round_ending:
+            self._render_explosion_effect(surface)
+            return
+
         surface.fill("black")
         self.mapa.render(surface)
 
@@ -387,3 +516,35 @@ class ParkourState(BaseState):
             texto = self._font.render(numero, True, "white")
             rect = texto.get_rect(center=surface.get_rect().center)
             surface.blit(texto, rect)
+
+    def _render_explosion_effect(self, surface: pygame.Surface) -> None:
+        # dibuja el mundo normal (mapa + personapas vivas) en una
+        # superficie aparte, para poder aplicarle el temblor de pantalla
+        # sin tocar el resto del código de dibujo
+        temp = pygame.Surface(surface.get_size())
+        temp.fill("black")
+        self.mapa.render(temp)
+
+        for i, personapa in enumerate(self.personapas):
+            if personapa.is_alive:
+                self._sprite_renderer.render(
+                    temp, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
+                )
+
+        if self.explosion_particles:
+            for p in self.explosion_particles:
+                p.render(temp)
+
+        shake_x, shake_y = 0, 0
+        if self.screen_shake_timer > 0:
+            shake_x = random.uniform(-EXPLOSION_SHAKE_MAGNITUDE, EXPLOSION_SHAKE_MAGNITUDE)
+            shake_y = random.uniform(-EXPLOSION_SHAKE_MAGNITUDE, EXPLOSION_SHAKE_MAGNITUDE)
+
+        surface.fill("black")
+        surface.blit(temp, (shake_x, shake_y))
+
+        # el círculo negro va creciendo hasta tapar toda la pantalla
+        if self.blackout_center is not None and self.blackout_progress > 0:
+            max_radius = math.hypot(surface.get_width(), surface.get_height())
+            radius = int(self.blackout_progress * max_radius)
+            pygame.draw.circle(surface, "black", self.blackout_center, radius)

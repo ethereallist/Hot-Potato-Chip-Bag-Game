@@ -24,6 +24,8 @@ class PersonapaSpriteRenderer:
         )
 
     def render(self, surface: pygame.Surface, personapa, anim_time: float, visual_scale: float = 1.0) -> None:
+        personapa.dash_trail.render(surface)  # la estela va detrás del personaje
+
         move_intent = personapa.move_intent
 
         if abs(move_intent.x) > abs(move_intent.y) and abs(move_intent.x) > 0.1:

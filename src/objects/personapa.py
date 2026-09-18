@@ -1,18 +1,53 @@
 """Personapa: the player character during ParkourState."""
 
+import random
+
 import pygame
 
-from gale.particle_system import ParticleSystem
+
+class DashParticle:
+    """Partícula chiquita y orgánica del dash: se va encogiendo y
+    desvaneciendo (alpha real, no un cuadrito opaco), dejando una
+    traza suave que desaparece sola."""
+
+    __slots__ = ("x", "y", "vx", "vy", "radius", "life", "max_life")
+
+    def __init__(self, x: float, y: float, vx: float, vy: float, radius: float, life: float) -> None:
+        self.x, self.y = x, y
+        self.vx, self.vy = vx, vy
+        self.radius = radius
+        self.life = life
+        self.max_life = life
+
+    def update(self, dt: float) -> None:
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.vx *= 0.9
+        self.vy *= 0.9
+        self.life -= dt
+
+    @property
+    def is_alive(self) -> bool:
+        return self.life > 0
+
+    def render(self, surface: pygame.Surface) -> None:
+        t = max(0.0, self.life / self.max_life)
+        radius = max(1, round(self.radius * t))  # se encoge con el tiempo
+        alpha = int(200 * t)
+        if alpha <= 0:
+            return
+
+        temp = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        pygame.draw.circle(temp, (255, 255, 255, alpha), (radius, radius), radius)
+        surface.blit(temp, (int(self.x - radius), int(self.y - radius)))
 
 
 class DashTrail:
-    """Continuous particle effect built on top of gale.particle_system.
-    ParticleSystem is meant to generate a single batch at once, so this
-    just spawns a new tiny ParticleSystem every `spawn_interval` seconds
-    and keeps them all updated until they finish on their own."""
+    """Suelta un par de DashParticle cada spawn_interval segundos,
+    mientras el personaje esté dasheando."""
 
-    def __init__(self, spawn_interval: float = 0.03) -> None:
-        self.active_systems: list[ParticleSystem] = []
+    def __init__(self, spawn_interval: float = 0.025) -> None:
+        self.particles: list[DashParticle] = []
         self.spawn_interval = spawn_interval
         self._spawn_timer: float = 0.0
 
@@ -22,22 +57,30 @@ class DashTrail:
             return
         self._spawn_timer = self.spawn_interval
 
-        puff = ParticleSystem(position[0], position[1], n=3)
-        puff.set_life_time(0.15, 0.25)
-        puff.set_linear_acceleration(0, 0, 0, 0)  # no acceleration: just fade in place
-        puff.set_colors([pygame.Color(255, 255, 255, 255)])
-        puff.set_area_spread(6, 6)
-        puff.generate()
-        self.active_systems.append(puff)
+        for _ in range(12):
+            angle = random.uniform(0, 360)
+            speed = random.uniform(9, 42)
+            direction = pygame.Vector2(1, 0).rotate(angle)
+            radius = random.uniform(3, 7)
+            life = random.uniform(0.18, 0.4)
+            # dispersión en la posición de nacimiento, no solo en la
+            # velocidad, para que se vea como una nube llena y no una
+            # sola línea de puntos
+            offset = pygame.Vector2(random.uniform(-9, 9), random.uniform(-9, 9))
+            x = position[0] + offset.x
+            y = position[1] + offset.y
+            self.particles.append(
+                DashParticle(x, y, direction.x * speed, direction.y * speed, radius, life)
+            )
 
     def update(self, dt: float) -> None:
-        for system in self.active_systems:
-            system.update(dt)
-        self.active_systems = [s for s in self.active_systems if s.particles]
+        for p in self.particles:
+            p.update(dt)
+        self.particles = [p for p in self.particles if p.is_alive]
 
     def render(self, surface: pygame.Surface) -> None:
-        for system in self.active_systems:
-            system.render(surface)
+        for p in self.particles:
+            p.render(surface)
 
 
 class Personapa:
@@ -109,7 +152,7 @@ class Personapa:
 
     def _get_other_box(self, other) -> pygame.Rect:
         method = getattr(other, "get_rect", None)
-        if not method == None:
+        if method is not None:
             return method()
         return None
 
@@ -139,8 +182,6 @@ class Personapa:
                 self.position.y -= overlap.height
             else:
                 self.position.y += overlap.height
-
-        self.get_rect().topleft = (self.position.x, self.position.y)
 
     def render(self, surface: pygame.Surface) -> None:
         self.dash_trail.render(surface)
