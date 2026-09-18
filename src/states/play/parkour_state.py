@@ -89,6 +89,83 @@ class ParkourState(BaseState):
         pygame.font.init()
         self._font = pygame.font.SysFont(None, 72)
 
+        try:
+            self._font = pygame.font.Font("assets/fonts/Hansief.otf", 72)
+            self._hud_font = pygame.font.Font("assets/fonts/Hansief.otf", 28)
+            self._hud_font_small = pygame.font.Font("assets/fonts/Hansief.otf", 12)
+        except (FileNotFoundError, pygame.error):
+            self._font = pygame.font.SysFont(None, 72)
+            self._hud_font = pygame.font.SysFont(None, 28)
+            self._hud_font_small = pygame.font.SysFont(None, 12)
+
+    def _render_hud(self, surface: pygame.Surface) -> None:
+        # --- Configuración de dimensiones y posición ---
+        card_w, card_h = 280, 56
+        card_x = (surface.get_width() - card_w) // 2
+        card_y = 12
+        border_radius = 14
+
+        # Tiempo restante e intensidad
+        time_left = max(0.0, self.round_time_left)
+        progress = min(1.0, max(0.0, time_left / ROUND_DURATION))
+        is_critical = time_left <= 5.0
+
+        # --- 1. Sombra del contenedor (Efecto de profundidad) ---
+        shadow_rect = pygame.Rect(card_x, card_y + 3, card_w, card_h)
+        pygame.draw.rect(surface, (10, 10, 15), shadow_rect, border_radius=border_radius)
+
+        # --- 2. Fondo principal flotante (Transparencia con superficie dedicada) ---
+        hud_surface = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+        bg_color = (20, 22, 32, 230)  # Azul oscuro / Grafito translúcido
+        pygame.draw.rect(hud_surface, bg_color, (0, 0, card_w, card_h), border_radius=border_radius)
+
+        # Borde exterior según el estado de la ronda
+        border_color = (235, 75, 75) if (is_critical and int(time_left * 6) % 2 == 0) else (60, 64, 80)
+        pygame.draw.rect(hud_surface, border_color, (0, 0, card_w, card_h), width=2, border_radius=border_radius)
+
+        # --- 3. Barra de tiempo gráfica inferior ---
+        bar_margin_x = 16
+        bar_w = card_w - (bar_margin_x * 2)
+        bar_h = 6
+        bar_x = bar_margin_x
+        bar_y = card_h - 12
+
+        # Fondo de la barra
+        pygame.draw.rect(hud_surface, (40, 44, 58), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+
+        # Relleno de la barra (Cambia de dorado/naranja a rojo vivo cuando queda poco tiempo)
+        fill_w = int(bar_w * progress)
+        if fill_w > 0:
+            bar_color = (245, 60, 60) if is_critical else (255, 175, 55)
+            pygame.draw.rect(hud_surface, bar_color, (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+
+        # --- 4. Renderizado del Texto con "Hansief.otf" ---
+        segundos = int(time_left)
+        milisegundos = int((time_left - segundos) * 100)
+        texto_str = f"{segundos:02d}:{milisegundos:02d}"
+
+        # Color del texto según urgencia
+        if is_critical and int(time_left * 8) % 2 == 0:
+            text_color = (255, 80, 80)
+        else:
+            text_color = (245, 245, 245)
+
+        # Texto de etiqueta pequeñita ("PAPA HOT")
+        label_surf = self._hud_font_small.render("TIEMPO PAPA", True, (160, 165, 180))
+        hud_surface.blit(label_surf, (bar_x, 8))
+
+        # Texto principal del reloj
+        time_surf = self._hud_font.render(texto_str, True, text_color)
+        time_rect = time_surf.get_rect(midright=(card_w - bar_margin_x, 20))
+
+        # Sombra del texto
+        shadow_time_surf = self._hud_font.render(texto_str, True, (15, 15, 20))
+        hud_surface.blit(shadow_time_surf, (time_rect.x + 1, time_rect.y + 1))
+        hud_surface.blit(time_surf, time_rect)
+
+        # Blit final en la pantalla principal
+        surface.blit(hud_surface, (card_x, card_y))
+
     def _construir_arena_de_prueba(self) -> None:
         for col in range(self.mapa.columns):
             self.mapa.set_tile_by_index(col, 0, TileType.WALL)
@@ -125,7 +202,7 @@ class ParkourState(BaseState):
             if personapa.is_alive:
                 personapa.move(dt)
 
-        self._check_tile_effects()
+        self._check_tile_effects(dt)
         self._check_player_collisions()
         self._check_object_collisions()
         self._update_tile_sinking(dt)
@@ -277,6 +354,10 @@ class ParkourState(BaseState):
                     personapa.size // 2 + 6, width=3,
                 )
 
+        # Dibujar la barra superior e interfaz
+        self._render_hud(surface)
+
+        # El conteo regresivo inicial se dibuja al final de todo
         if self.in_countdown:
             numero = str(int(self.countdown_time_left) + 1)
             texto = self._font.render(numero, True, "white")
