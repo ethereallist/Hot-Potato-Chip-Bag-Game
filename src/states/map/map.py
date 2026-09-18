@@ -86,13 +86,16 @@ class Map:
     # --- Construcción (ConstructionState) ---
 
     def set_up_visual_data_layer(self) -> None:
+        self.visual_data_layer = []
         for i in range(self.columns):
             col = []
             for j in range(self.rows):
-                frame = random.randint(
-                    0,
-                    max(0,len(TILE_FRAMES[self.tile_layer[j][i]]) - 1)
-                )
+                frame = -1
+                if len(TILE_FRAMES[self.tile_layer[j][i]]) > 0:
+                    frame = random.randint(
+                        0,
+                        max(0,len(TILE_FRAMES[self.tile_layer[j][i]]) - 1)
+                    )
                 col.append(VisualData(frame))
             self.visual_data_layer.append(col)
 
@@ -318,7 +321,8 @@ class Map:
                 
                 if not (texture := TILE_TEXTURES[tile_value]) == None:
                     frame_id = self.visual_data_layer[col][row].frame_id
-                    surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
+                    if not frame_id == -1:
+                        surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
                 else:
                     rect = pygame.Rect(pos_x, pos_y + y_offset, self.tile_size, self.tile_size)
                     pygame.draw.rect(surface, color, rect)
@@ -384,6 +388,8 @@ class TileAnimation():
         
     def finish(self) -> None:
         self.map_ref.tile_layer[self.row][self.col] = TileType.SUNKEN
+        self.map_ref.visual_data_layer[self.col][self.row].frame = -1
+        self.map_ref.visual_data_layer[self.col][self.row].y_offset = 0
         self.map_ref.visual_data_layer[self.col][self.row].texture = None
         self.stage = AnimationStage.FINISHED
         
