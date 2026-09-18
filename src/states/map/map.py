@@ -11,18 +11,17 @@ en dash, pared lo empuja hacia afuera).
 """
 
 import settings
+from gale.timer import Timer
 from enum import IntEnum
 
 import pygame
 import random
 
-
 class TileType(IntEnum):
     FLOOR = 0
     HOLE = 1
     WALL = 2
-    SUNKEN = 3  # casilla que se ha hundido (no es un hueco, pero tampoco es suelo)
-
+    SUNKEN = 3  # casilla que se ha hundido (se interpreta igual que HOLE a nivel de logica)
 
 COLOR_PALETTE = {
     TileType.FLOOR: (170, 150, 120),
@@ -31,6 +30,29 @@ COLOR_PALETTE = {
     TileType.WALL: (240, 240, 240),
 }
 
+TILE_TEXTURES = {
+    TileType.FLOOR: settings.TEXTURES["floor_tiles"],
+    TileType.HOLE: None,
+    TileType.SUNKEN: None,
+    TileType.WALL: settings.TEXTURES["wall_tiles"],
+}
+
+TILE_FRAMES = {
+    TileType.FLOOR: settings.FRAMES["floor_tiles"],
+    TileType.HOLE: [],
+    TileType.SUNKEN: [],
+    TileType.WALL: settings.FRAMES["wall_tiles"],
+}
+      
+class VisualData():
+    def __init__(
+        self,
+        frame_id: int,
+    ):
+        self.frame_id = frame_id
+        self.y_offset = 0
+        self.transparent_texture = None
+        
 
 class Map:
     def __init__(self, x: float, y: float, columns: int, rows: int) -> None:
@@ -43,6 +65,12 @@ class Map:
         self.tile_layer = [
             [TileType.FLOOR for _ in range(columns)] for _ in range(rows)
         ]
+        
+        self.visual_data_layer = []
+        self.set_up_visual_data_layer()
+        
+        self.tile_animations = []
+        
         self.object_layer = [
             [-1 for _ in range(columns)] for _ in range(rows)
         ]
@@ -53,9 +81,20 @@ class Map:
         self.sink_list = []
         self.nonfloor_tile_count = 0
         self.recount_nonfloor_tiles()
-        self.reset_sinking()  # FIX: se llamaba a restart_sinking_structures(), que no existía
+        self.reset_sinking()
 
     # --- Construcción (ConstructionState) ---
+
+    def set_up_visual_data_layer(self) -> None:
+        for i in range(self.columns):
+            col = []
+            for j in range(self.rows):
+                frame = random.randint(
+                    0,
+                    max(0,len(TILE_FRAMES[self.tile_layer[j][i]]) - 1)
+                )
+                col.append(VisualData(frame))
+            self.visual_data_layer.append(col)
 
     def pos_is_inside_map(self, x: float, y: float) -> bool:
         return (
@@ -87,13 +126,13 @@ class Map:
         if not self.pos_is_inside_map(x, y):
             return None
         col, row = self.pos_to_index(x, y)
-        tile = self.tile_layer[row][col]  # FIX: estaba [col][row]
+        tile = self.tile_layer[row][col]
         return TileType.HOLE if tile == TileType.SUNKEN else tile
 
     def get_tile_by_index(self, col: int, row: int):
         if not self.index_is_inside_map(col, row):
             return None
-        tile = self.tile_layer[row][col]  # FIX: estaba [col][row]
+        tile = self.tile_layer[row][col]
         return TileType.HOLE if tile == TileType.SUNKEN else tile
 
     def get_rect_by_pos(self, x: float, y: float):
@@ -189,7 +228,7 @@ class Map:
             col = []
             self.sink_layer.append(col)
             for j in range(self.rows):
-                if self.tile_layer[j][i] == TileType.FLOOR:  # FIX: estaba [i][j]
+                if self.tile_layer[j][i] == TileType.FLOOR:
                     col.append(j + i * self.rows - nonfloor_count_so_far)
                     floor_list.append((i, j))
                 else:
@@ -205,14 +244,14 @@ class Map:
     def unsink(self):
         for i in range(self.columns):
             for j in range(self.rows):
-                if self.tile_layer[j][i] == TileType.SUNKEN:  # FIX: estaba [i][j]
+                if self.tile_layer[j][i] == TileType.SUNKEN:
                     self.tile_layer[j][i] = TileType.FLOOR
 
     def recount_nonfloor_tiles(self):
         count = 0
         for i in range(self.columns):
             for j in range(self.rows):
-                if not self.tile_layer[j][i] == TileType.FLOOR:  # FIX: estaba [i][j]
+                if not self.tile_layer[j][i] == TileType.FLOOR:
                     count += 1
         self.nonfloor_tile_count = count
 
@@ -227,8 +266,8 @@ class Map:
         if not self.pos_is_inside_map(x, y):
             return
 
-        col, row = self.pos_to_index(x, y)  # FIX: faltaba self.
-        if not self.tile_layer[row][col] == TileType.FLOOR:  # FIX: estaba [col][row]
+        col, row = self.pos_to_index(x, y)
+        if not self.tile_layer[row][col] == TileType.FLOOR:
             return
 
         old_number = self.sink_layer[col][row]
@@ -247,18 +286,114 @@ class Map:
 
     def sink_tile(self, number: int) -> None:
         col, row = self.sink_list[number]
-        self.tile_layer[row][col] = TileType.SUNKEN  # FIX: estaba [col][row]
         self.nonfloor_tile_count += 1
+        self.tile_animations.append(
+            TileAnimation(
+                col,
+                row,
+                self.tile_layer[row][col],
+                self.visual_data_layer[col][row].frame_id,
+                self
+            )
+        )
+
+    def update(self, dt: float) -> None:
+        for a in self.tile_animations:
+            a.update(dt)
+        self.tile_animations = [a for a in self.tile_animations if not a.stage == AnimationStage.FINISHED]
 
     # --- Render ---
 
     def render(self, surface: pygame.Surface) -> None:
         for row in range(self.rows):
             for col in range(self.columns):
-                tile_value = self.get_tile_by_index(col, row)  # FIX: era [row][col] sobre el método sin llamar
+                tile_value = self.get_tile_by_index(col, row)
+                if tile_value == TileType.HOLE:
+                    continue
+                
                 color = COLOR_PALETTE.get(tile_value, (0, 0, 0))
                 pos_x = self.x + (col * self.tile_size)
                 pos_y = self.y + (row * self.tile_size)
-                rect = pygame.Rect(pos_x, pos_y, self.tile_size, self.tile_size)
-                pygame.draw.rect(surface, color, rect)
-                pygame.draw.rect(surface, (0, 0, 0), rect, width=1)
+                y_offset = self.visual_data_layer[col][row].y_offset
+                
+                if not (texture := TILE_TEXTURES[tile_value]) == None:
+                    frame_id = self.visual_data_layer[col][row].frame_id
+                    surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
+                else:
+                    rect = pygame.Rect(pos_x, pos_y + y_offset, self.tile_size, self.tile_size)
+                    pygame.draw.rect(surface, color, rect)
+                    pygame.draw.rect(surface, (0, 0, 0), rect, width=1)
+
+SHAKING_DURATION = 0.7
+SHAKE_HEIGHT = 10
+SHAKE_LOOPS = 3
+SHAKE_PERIOD = 1/SHAKE_LOOPS
+
+SINKING_DURATION = 0.8
+SINK_DISTANCE = settings.TILE_SIZE * 2
+
+class AnimationStage(IntEnum):
+    STILL = 0
+    SHAKING = 1
+    SINKING = 2
+    FINISHED = 3
+
+class TileAnimation():
+    def __init__(
+        self,
+        col: int,
+        row: int,
+        tile_type: TileType,
+        frame: int,
+        map_ref: Map
+    ):
+        self.map_ref = map_ref
+        self.col = col
+        self.row = row
+        self.alpha_rate = 1
+        self.rate = 0
+        self.texture = TILE_TEXTURES[tile_type].subsurface(
+            TILE_FRAMES[tile_type][frame]
+        ).copy()
+        self.stage = AnimationStage.STILL
+        
+        self.start_animation()
+    
+    def start_animation(self) -> None:
+        self.map_ref.visual_data_layer[self.col][self.row].texture = self.texture
+        self.shake_animation()
+    
+    def shake_animation(self) -> None:
+        self.stage = AnimationStage.SHAKING
+        Timer.tween(
+            SHAKING_DURATION,
+            [(self,{"rate": 1})],
+            ease_function_name="out_cubic",
+            on_finish=self.sink_animation
+        )
+    
+    def sink_animation(self) -> None:
+        self.stage = AnimationStage.SINKING
+        self.rate = 0
+        Timer.tween(
+            SHAKING_DURATION,
+            [(self,{"rate": 1,"alpha_rate": 0})],
+            ease_function_name="out_cubic",
+            on_finish=self.finish
+        )
+        
+    def finish(self) -> None:
+        self.map_ref.tile_layer[self.row][self.col] = TileType.SUNKEN
+        self.map_ref.visual_data_layer[self.col][self.row].texture = None
+        self.stage = AnimationStage.FINISHED
+        
+    def update(self, dt: float) -> None:
+        v_d = self.map_ref.visual_data_layer[self.col][self.row]
+        if self.stage == AnimationStage.SHAKING:
+            loop = self.rate//SHAKE_PERIOD #which loop are we in
+            loop_progress = self.rate*SHAKE_LOOPS - loop #value from 0 to 1 indicating the animation loop progress
+            shift_rate = 1 - abs(1 - loop_progress * 2) #goes from 0 to 1 to 0
+            v_d.y_offset = shift_rate*SHAKE_HEIGHT
+        elif self.stage == AnimationStage.SINKING:
+            v_d.y_offset = self.rate * SINK_DISTANCE
+            self.texture.set_alpha(max(0,min(255*self.alpha_rate,255)))
