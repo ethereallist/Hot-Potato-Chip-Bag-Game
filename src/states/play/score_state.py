@@ -96,8 +96,14 @@ class ScoreState(BaseState):
 
     def on_input(self, input_id, input_data) -> None:
         if self.interact_allowed:
-            self.state_machine.change("parkour", play_state=self.play_state)
-
+            if (
+                not (winner := self.play_state.check_winner()) == -1
+                or self.play_state.are_rounds_over()
+            ):
+                self.play_state.return_to_menu()
+            else:
+                self.state_machine.change("parkour", play_state=self.play_state)
+            
     def animate_scores(self) -> None:
         pass
 

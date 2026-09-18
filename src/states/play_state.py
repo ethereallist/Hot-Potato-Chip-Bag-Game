@@ -29,13 +29,28 @@ class PlayState(HierarchicalState):
             },
             initial_substate = "base"
         )
-        
-        self.player_count = 4
-        self.rounds = 0
-        self.max_rounds = int(2*self.player_count)
-        self.target_score = int(3*self.player_count)
-        self.scores = [0 for _ in range(self.player_count)]
 
     def enter(self, **kwargs) -> None:
         super().enter(**kwargs)  # obligatorio: activa el substate inicial
+        
+        self.player_count = kwargs.get("player_count", 4) #it should be 2 as minimum
+        self.rounds = 0
+        self.max_rounds = int(3 + 2 * (self.player_count - 1))
+        self.target_score = int(3 + 1.5 * (self.player_count - 2))
+        self.scores = [0 for _ in range(self.player_count)]
+        
         self.substate_machine.change("parkour", play_state=self)
+        
+    def are_rounds_over(self) -> bool:
+        return self.rounds >= self.max_rounds
+        
+    def check_winner(self) -> int:
+        for i in range(self.player_count):
+            if self.scores[i] >= self.target_score:
+                return i
+        
+        return -1
+        
+    def return_to_menu(self):
+        self.state_machine.change("menu")
+        
