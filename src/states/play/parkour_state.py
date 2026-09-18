@@ -125,7 +125,7 @@ class ParkourState(BaseState):
             if personapa.is_alive:
                 personapa.move(dt)
 
-        self._check_tile_effects()
+        self._check_tile_effects(dt)
         self._check_player_collisions()
         self._check_object_collisions()
         self._update_tile_sinking(dt)
