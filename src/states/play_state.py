@@ -10,7 +10,7 @@ recibir esas llamadas.
 
 import pygame
 
-from gale.state import HierarchicalState, StateMachine
+from gale.state import HierarchicalState, BaseState, StateMachine
 
 from src.states.play.construction_state import ConstructionState
 from src.states.play.parkour_state import ParkourState
@@ -25,9 +25,17 @@ class PlayState(HierarchicalState):
                 "construction": ConstructionState,
                 "parkour": ParkourState,
                 "score": ScoreState,
+                "base": BaseState,
             },
-            initial_substate="parkour",
+            initial_substate = "base"
         )
+        
+        self.player_count = 4
+        self.rounds = 0
+        self.max_rounds = int(2*self.player_count)
+        self.target_score = int(3*self.player_count)
+        self.scores = [0 for _ in range(self.player_count)]
 
     def enter(self, **kwargs) -> None:
         super().enter(**kwargs)  # obligatorio: activa el substate inicial
+        self.substate_machine.change("parkour", play_state=self)
