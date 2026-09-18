@@ -39,7 +39,9 @@ class PlayState(HierarchicalState):
         self.target_score = int(3 + 1.5 * (self.player_count - 2))
         self.scores = [0 for _ in range(self.player_count)]
         
-        self.substate_machine.change("parkour", play_state=self)
+        # se reenvía personapas (si vino del menú) junto con play_state,
+        # si no, change() solo pasaba play_state y se perdía lo demás
+        self.substate_machine.change("parkour", play_state=self, personapas=kwargs.get("personapas"))
         
     def are_rounds_over(self) -> bool:
         return self.rounds >= self.max_rounds
@@ -53,4 +55,3 @@ class PlayState(HierarchicalState):
         
     def return_to_menu(self):
         self.state_machine.change("menu")
-        

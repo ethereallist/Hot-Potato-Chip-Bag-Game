@@ -39,7 +39,7 @@ FREEZE_DURATION = 3.0       # segundos quietos tras chocar
 WIGGLE_DURATION = 0.5       # segundos de meneo antes de retomar camino
 WIGGLE_AMPLITUDE = 4        # qué tanto se menea, en píxeles
 WIGGLE_FREQUENCY = 30       # qué tan rápido menea
-MENU_PERSONAPA_VISUAL_SCALE = 4.0  # solo el dibujo; el tamaño de colisión no cambia
+MENU_PERSONAPA_VISUAL_SCALE = 2.0  # solo el dibujo; el tamaño de colisión no cambia
 
 BUTTON_TWEEN_DURATION = 0.35  # segundos que tarda la animación
 BUTTON_EDGE_MARGIN = 30       # separación de los botones respecto al borde, ya confirmado
@@ -351,7 +351,7 @@ class MenuState(BaseState):
             if self.button_state == "main":
                 self.button_state = "confirming"
             else:  # ya estaba confirmado -> arranca el juego de verdad
-                self.state_machine.change("play")
+                self.state_machine.change("play", personapas=self.menu_personapas)
         else:  # Salir / flecha de regreso
             if self.button_state == "confirm":
                 self.button_state = "returning"

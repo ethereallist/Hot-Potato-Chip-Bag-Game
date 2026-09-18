@@ -10,6 +10,7 @@ from gale.state import BaseState
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
 from src.objects.gamepad_direct import GamepadDirectController
+from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
 
 
@@ -33,17 +34,28 @@ COUNTDOWN_DURATION = 3.0
 ROUND_DURATION = 20.0
 SINK_START_DELAY = 6.0
 SINK_INTERVAL = 2.0
+PERSONAPA_VISUAL_SCALE = 2.0  # tamaño del sprite al dibujarlo; igual que MENU_PERSONAPA_VISUAL_SCALE del menú
 
 
 class ParkourState(BaseState):
     def enter(self, **kwargs) -> None:
         self.play_state = kwargs["play_state"]
+
+        # Personapas que ya venían caminando en el menú (si las hay) —
+        # se REUTILIZAN tal cual, con su posición actual, en vez de
+        # crear unas nuevas en START_POSITIONS.
+        incoming = kwargs.get("personapas")
+
         self.personapas: list[Personapa] = []
         self.controllers: list[PlayerController] = []  # solo teclado, vía Gale
 
-        for config, start_pos in zip(KEYBOARD_PLAYER_CONFIGS, START_POSITIONS):
-            personapa = Personapa()
-            personapa.position = pygame.Vector2(start_pos)
+        for i, config in enumerate(KEYBOARD_PLAYER_CONFIGS):
+            if incoming and i < len(incoming):
+                personapa = incoming[i]
+                personapa.move_intent = pygame.Vector2(0, 0)  # limpia el rumbo que traía del menú
+            else:
+                personapa = Personapa()
+                personapa.position = pygame.Vector2(START_POSITIONS[i])
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
@@ -52,8 +64,12 @@ class ParkourState(BaseState):
             self.controllers.append(controller)
 
         # Jugador 3: mando, leído directo con pygame (sondeo, sin eventos de Gale)
-        personapa_3 = Personapa()
-        personapa_3.position = pygame.Vector2(START_POSITIONS[2])
+        if incoming and len(incoming) > 2:
+            personapa_3 = incoming[2]
+            personapa_3.move_intent = pygame.Vector2(0, 0)
+        else:
+            personapa_3 = Personapa()
+            personapa_3.position = pygame.Vector2(START_POSITIONS[2])
         self.personapas.append(personapa_3)
 
         self.gamepad_controller = None
@@ -64,16 +80,21 @@ class ParkourState(BaseState):
             pass  # no hay mando conectado; el jugador 3 simplemente no se mueve
 
         # Jugador 4: todavía sin dispositivo asignado (falta un segundo mando).
-        # Se crea igual para que aparezca en pantalla, pero se queda quieto
-        # hasta que se le conecte un control (ver TODO más abajo).
-        personapa_4 = Personapa()
-        personapa_4.position = pygame.Vector2(START_POSITIONS[3])
+        if incoming and len(incoming) > 3:
+            personapa_4 = incoming[3]
+            personapa_4.move_intent = pygame.Vector2(0, 0)
+        else:
+            personapa_4 = Personapa()
+            personapa_4.position = pygame.Vector2(START_POSITIONS[3])
         self.personapas.append(personapa_4)
 
         # TODO: cuando haya un segundo mando físico conectado, algo como:
         # self.gamepad_controller_2 = GamepadDirectController(joystick_index=1)
         # self.gamepad_controller_2.possessed_entity = personapa_4
         self.gamepad_controller_2 = None
+
+        self._sprite_renderer = PersonapaSpriteRenderer()
+        self._personapa_anim_time = [random.uniform(0, 1) for _ in self.personapas]
 
         random.choice(self.personapas).is_hot_potato = True
 
@@ -198,7 +219,8 @@ class ParkourState(BaseState):
 
         self.round_time_left -= dt
 
-        for personapa in self.personapas:
+        for i, personapa in enumerate(self.personapas):
+            self._personapa_anim_time[i] += dt
             if personapa.is_alive:
                 personapa.move(dt)
 
@@ -344,10 +366,12 @@ class ParkourState(BaseState):
         surface.fill("black")
         self.mapa.render(surface)
 
-        for personapa in self.personapas:
+        for i, personapa in enumerate(self.personapas):
             if not personapa.is_alive:
                 continue
-            personapa.render(surface)
+            self._sprite_renderer.render(
+                surface, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
+            )
             if personapa.is_hot_potato:
                 pygame.draw.circle(
                     surface, "yellow", personapa.get_rect().center,
