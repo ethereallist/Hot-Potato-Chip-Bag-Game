@@ -18,6 +18,9 @@ class DashParticle:
         self.radius = radius
         self.life = life
         self.max_life = life
+        # Sombrero del personaje
+        self.hat_index: int = -1  # -1 = sin sombrero
+        self.hat_sprites = None   # instancia compartida de HatSprites
 
     def update(self, dt: float) -> None:
         self.x += self.vx * dt
