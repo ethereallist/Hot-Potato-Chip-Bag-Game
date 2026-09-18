@@ -75,3 +75,9 @@ PlayState
 
 ### Added
 - Menú principal con botones interactivos agregados, para moverse entre ellos se utiliza w, s y seleccionar con espacio.
+
+## [0.9.0] - 2026-09-18
+
+### Added
+
+- Se añadió funcionalidad de selección de sombreros para cada personaje en el menú principal.
