@@ -44,7 +44,6 @@ class ParkourState(BaseState):
         for config, start_pos in zip(KEYBOARD_PLAYER_CONFIGS, START_POSITIONS):
             personapa = Personapa()
             personapa.position = pygame.Vector2(start_pos)
-            personapa.collide_box.topleft = start_pos
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
@@ -55,7 +54,6 @@ class ParkourState(BaseState):
         # Jugador 3: mando, leído directo con pygame (sondeo, sin eventos de Gale)
         personapa_3 = Personapa()
         personapa_3.position = pygame.Vector2(START_POSITIONS[2])
-        personapa_3.collide_box.topleft = START_POSITIONS[2]
         self.personapas.append(personapa_3)
 
         self.gamepad_controller = None
@@ -70,7 +68,6 @@ class ParkourState(BaseState):
         # hasta que se le conecte un control (ver TODO más abajo).
         personapa_4 = Personapa()
         personapa_4.position = pygame.Vector2(START_POSITIONS[3])
-        personapa_4.collide_box.topleft = START_POSITIONS[3]
         self.personapas.append(personapa_4)
 
         # TODO: cuando haya un segundo mando físico conectado, algo como:
@@ -128,7 +125,7 @@ class ParkourState(BaseState):
             if personapa.is_alive:
                 personapa.move(dt)
 
-        self._check_tile_effects(dt)
+        self._check_tile_effects()
         self._check_player_collisions()
         self._check_object_collisions()
         self._update_tile_sinking(dt)
@@ -144,15 +141,85 @@ class ParkourState(BaseState):
             personapa = self.personapas[i]
             if not personapa.is_alive:
                 continue
-            col, row = self.mapa.pos_to_index(*personapa.collide_box.center)
-            if col == -1:
+            
+            tile = self.mapa.get_tile_by_pos(*personapa.get_rect().center)
+            if (
+                tile == TileType.HOLE
+                or tile == None
+            ):
+                if not personapa.is_dashing:
+                    personapa.is_alive = False
+                    self.death_log[i] = False
+                    continue
+           
+            self.mapa.register_sink(*personapa.get_rect().center)
+            
+            x, y = personapa.position
+            leftoverlap, rightoverlap, upoverlap, downoverlap = 0, 0, 0, 0
+            
+            indexes = self.mapa.pos_to_index(x, y) #top-left
+            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+                clip = personapa.get_rect().clip(
+                    self.mapa.get_rect_by_index(*indexes)
+                )
+                leftoverlap = max(leftoverlap, clip.width)
+                upoverlap = max(upoverlap, clip.height)
+                
+            indexes = self.mapa.pos_to_index(x + personapa.size, y) #top-right
+            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+                clip = personapa.get_rect().clip(
+                    self.mapa.get_rect_by_index(*indexes)
+                )
+                rightoverlap = max(rightoverlap, clip.width)
+                upoverlap = max(upoverlap, clip.height)
+                
+            indexes = self.mapa.pos_to_index(x, y + personapa.size) #bottom-left
+            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+                clip = personapa.get_rect().clip(
+                    self.mapa.get_rect_by_index(*indexes)
+                )
+                leftoverlap = max(leftoverlap, clip.width)
+                downoverlap = max(downoverlap, clip.height)
+                
+            indexes = self.mapa.pos_to_index(x + personapa.size, y + personapa.size) #bottom-right
+            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+                clip = personapa.get_rect().clip(
+                    self.mapa.get_rect_by_index(*indexes)
+                )
+                rightoverlap = max(rightoverlap, clip.width)
+                downoverlap = max(downoverlap, clip.height)
+               
+            h_overlap = leftoverlap + rightoverlap
+            v_overlap = upoverlap + downoverlap
+            
+            if h_overlap == 0:
                 continue
-            self.mapa.registrar_pisado(col, row, dt)
-            was_alive = personapa.is_alive
-            self.mapa.resolve_tile_collision(personapa, col, row)
-            if was_alive and not personapa.is_alive:
-                self.death_log[i] = False
-
+            
+            full_side_overlap = False
+            
+            if h_overlap == personapa.size:
+                if upoverlap * downoverlap == 0:
+                    personapa.position.y += upoverlap if upoverlap > 0 else -downoverlap
+                else:
+                    personapa.position.y += upoverlap if upoverlap < downoverlap else -downoverlap
+                full_side_overlap = True
+            
+            if v_overlap == personapa.size:
+                if leftoverlap * rightoverlap == 0:
+                    personapa.position.x += leftoverlap if leftoverlap > 0 else -rightoverlap
+                else:
+                    personapa.position.x += leftoverlap if leftoverlap < rightoverlap else -rightoverlap
+                full_side_overlap = True
+            
+            if full_side_overlap:
+                continue
+            
+            if h_overlap < v_overlap:
+                personapa.position.x +=  leftoverlap if leftoverlap > 0 else -rightoverlap
+            else:
+                personapa.position.y +=  upoverlap if upoverlap > 0 else -downoverlap
+                
+        
     def _check_player_collisions(self) -> None:
         alive = [p for p in self.personapas if p.is_alive]
         for i, a in enumerate(alive):
@@ -177,7 +244,7 @@ class ParkourState(BaseState):
         self.sink_timer -= dt
         if self.sink_timer <= 0:
             self.sink_timer = SINK_INTERVAL
-            self.mapa.hundir_casillas_random()
+            self.mapa.sink_random_tile()
 
     def _explode_hot_potato(self) -> None:
         for i in range(len(self.personapas)):
@@ -206,7 +273,7 @@ class ParkourState(BaseState):
             personapa.render(surface)
             if personapa.is_hot_potato:
                 pygame.draw.circle(
-                    surface, "yellow", personapa.collide_box.center,
+                    surface, "yellow", personapa.get_rect().center,
                     personapa.size // 2 + 6, width=3,
                 )
 

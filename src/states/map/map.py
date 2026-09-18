@@ -177,35 +177,6 @@ class Map:
                 self.object_layer[target_row][target_col] = self.object_counter
         self.object_counter += 1
 
-    # --- Parkour (ParkourState): colisión según tipo de casilla ---
-
-    def resolve_tile_collision(self, personapa, col: int, row: int) -> None:
-        """RESTAURADO: se había perdido al combinar con el sistema de
-        hundimiento nuevo. Suelo no hace nada, hueco (o casilla hundida,
-        que get_tile_by_index ya trata como hueco) hace caer salvo dash,
-        pared empuja hacia afuera."""
-        tile = self.get_tile_by_index(col, row)
-
-        if tile == TileType.HOLE:
-            if not personapa.is_dashing:
-                personapa.is_alive = False
-        elif tile == TileType.WALL:
-            tile_rect = self.get_rect_by_index(col, row)
-            if not personapa.collide_box.colliderect(tile_rect):
-                return
-            overlap = personapa.collide_box.clip(tile_rect)
-            if overlap.width < overlap.height:
-                if personapa.collide_box.centerx < tile_rect.centerx:
-                    personapa.position.x -= overlap.width
-                else:
-                    personapa.position.x += overlap.width
-            else:
-                if personapa.collide_box.centery < tile_rect.centery:
-                    personapa.position.y -= overlap.height
-                else:
-                    personapa.position.y += overlap.height
-            personapa.collide_box.topleft = (personapa.position.x, personapa.position.y)
-
     # --- Hundimiento progresivo de casillas (sistema de tu compañero) ---
 
     def reset_sinking(self) -> None:
@@ -252,7 +223,7 @@ class Map:
         self.sink_layer[self.sink_list[number][0]][self.sink_list[number][1]] = number
         self.sink_layer[self.sink_list[other][0]][self.sink_list[other][1]] = other
 
-    def register_sink(self, x: float, y: float, dt: float) -> None:
+    def register_sink(self, x: float, y: float) -> None:
         if not self.pos_is_inside_map(x, y):
             return
 
@@ -278,16 +249,6 @@ class Map:
         col, row = self.sink_list[number]
         self.tile_layer[row][col] = TileType.SUNKEN  # FIX: estaba [col][row]
         self.nonfloor_tile_count += 1
-
-    # --- Puentes de compatibilidad con los nombres que usa ParkourState ---
-
-    def registrar_pisado(self, col: int, row: int, dt: float) -> None:
-        pos = self.index_to_pos(col, row)
-        if pos is not None:
-            self.register_sink(pos[0], pos[1], dt)
-
-    def hundir_casillas_random(self) -> None:
-        self.sink_random_tile()
 
     # --- Render ---
 
