@@ -6,8 +6,10 @@ Gale lee este archivo automáticamente si está en la raíz del proyecto
 
 import os
 import pathlib
-
 import pygame
+
+BASE_DIR = pathlib.Path(__file__).parent
+
 from gale.input_handler import (
     InputHandler,
     GAMEPAD_AXIS_RIGHT_X,
@@ -19,6 +21,10 @@ from gale.input_handler import (
     GAMEPAD_BUTTON_DPAD_LEFT,
     GAMEPAD_BUTTON_DPAD_RIGHT,
 )
+
+SHAPES = {
+    "cursor" : pygame.image.load(BASE_DIR / "assets" / "images" / "cursor_shape.png")
+}
 
 # Le dice a SDL que cargue esta base de datos de mapeos ANTES de
 # inicializar nada de mandos, para que mandos que no traen mapeo nativo
