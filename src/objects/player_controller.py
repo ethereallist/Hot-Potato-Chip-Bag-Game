@@ -5,7 +5,6 @@ y activa las intenciones correspondientes en su objeto poseído
 from gale.input_handler import InputData, apply_deadzone
 from gale.command import Command, CommandBindings
 
-
 class MoveVectorRightCommand(Command):
     def execute(self, receiver, dt: float = 0.0) -> None:
         receiver.move_intent.x += 1
@@ -24,6 +23,29 @@ class MoveVectorUpCommand(Command):
 class MoveVectorDownCommand(Command):
     def execute(self, receiver, dt: float = 0.0) -> None:
         receiver.move_intent.y += 1
+
+class StopVectorRightCommand(Command):
+    def execute(self, receiver, dt: float = 0.0) -> None:
+        if receiver.move_intent.x > 0:
+            receiver.move_intent.x = 0
+
+
+class StopVectorLeftCommand(Command):
+    def execute(self, receiver, dt: float = 0.0) -> None:
+        if receiver.move_intent.x < 0:
+            receiver.move_intent.x = 0
+
+
+class StopVectorUpCommand(Command):
+    def execute(self, receiver, dt: float = 0.0) -> None:
+        if receiver.move_intent.y < 0:
+            receiver.move_intent.y = 0
+
+
+class StopVectorDownCommand(Command):
+    def execute(self, receiver, dt: float = 0.0) -> None:
+        if receiver.move_intent.y > 0:
+            receiver.move_intent.y = 0
 
 
 class MainActionCommand(Command):
@@ -50,6 +72,10 @@ MOVEC_L = MoveVectorLeftCommand()
 MOVEC_R = MoveVectorRightCommand()
 MOVEC_U = MoveVectorUpCommand()
 MOVEC_D = MoveVectorDownCommand()
+STVEC_L = StopVectorLeftCommand()
+STVEC_R = StopVectorRightCommand()
+STVEC_U = StopVectorUpCommand()
+STVEC_D = StopVectorDownCommand()
 MAIN = MainActionCommand()
 STOP_MAIN = StopMainActionCommand()
 SECONDARY = SecondaryActionCommand()
@@ -67,10 +93,10 @@ class PlayerController:
         if self.device in ("keyboard", "gamepad"):
             # el D-pad de un mando se reporta como botones (press/release),
             # igual que las teclas, así que se bindea de la misma forma
-            self.command_bindings.bind(params["left"], press=MOVEC_L, release=MOVEC_R)
-            self.command_bindings.bind(params["right"], press=MOVEC_R, release=MOVEC_L)
-            self.command_bindings.bind(params["up"], press=MOVEC_U, release=MOVEC_D)
-            self.command_bindings.bind(params["down"], press=MOVEC_D, release=MOVEC_U)
+            self.command_bindings.bind(params["left"], press=MOVEC_L, release=STVEC_L)
+            self.command_bindings.bind(params["right"], press=MOVEC_R, release=STVEC_R)
+            self.command_bindings.bind(params["up"], press=MOVEC_U, release=STVEC_U)
+            self.command_bindings.bind(params["down"], press=MOVEC_D, release=STVEC_D)
 
         self.command_bindings.bind(params["main_action"], press=MAIN, release=STOP_MAIN)
         self.command_bindings.bind(params["secondary_action"], press=SECONDARY, release=STOP_SECONDARY)
