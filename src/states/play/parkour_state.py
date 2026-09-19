@@ -541,6 +541,10 @@ class ParkourState(BaseState):
         return sum(1 for p in self.personapas if p.is_alive)
 
     def _end_round(self) -> None:
+        # Recorremos todas las personapas para desactivar la papa caliente
+        for p in self.personapas:
+            p.is_hot_potato = False
+
         self.state_machine.change(
             "score",
             death_log=self.death_log,
