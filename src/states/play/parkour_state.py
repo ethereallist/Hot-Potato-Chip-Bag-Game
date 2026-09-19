@@ -556,11 +556,11 @@ class ParkourState(BaseState):
             self._sprite_renderer.render(
                 surface, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
             )
-            if personapa.is_hot_potato:
-                pygame.draw.circle(
-                    surface, "yellow", personapa.get_rect().center,
-                    personapa.size // 2 + 6, width=3,
-                )
+            #if personapa.is_hot_potato:
+                #pygame.draw.circle(
+                    #surface, "yellow", personapa.get_rect().center,
+                    #personapa.size // 2 + 6, width=3,
+                #)
 
         # Dibujar la barra superior e interfaz
         self._render_hud(surface)

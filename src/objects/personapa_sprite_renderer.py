@@ -5,6 +5,7 @@ dónde apunte move_intent, igual que en MenuState. También renderiza
 el sombrero encima si el personaje tiene uno."""
 
 import pygame
+import random
 
 from src.objects.sprite_animation import SpriteAnimation
 
@@ -70,6 +71,7 @@ class PersonapaSpriteRenderer:
 
         move_intent = personapa.move_intent
 
+        # 1. Obtener el frame correcto de la animación
         if abs(move_intent.x) > abs(move_intent.y) and abs(move_intent.x) > 0.1:
             flipped = move_intent.x < 0
             frame = self.walk_right_animation.get_frame(anim_time, flipped=flipped)
@@ -79,14 +81,79 @@ class PersonapaSpriteRenderer:
             flipped = personapa.facing_direction.x < 0
             frame = self.idle_animation.get_frame(anim_time, flipped=flipped)
 
-        render_size = int(personapa.size * visual_scale)
-        frame = pygame.transform.scale(frame, (render_size, render_size))
-        rect = frame.get_rect(center=personapa.get_rect().center)
-        surface.blit(frame, rect)
+        # 2. Copiar el frame para poder teñirlo
+        frame_surface = frame.copy()
 
+        tiene_papa = getattr(personapa, 'is_hot_potato', False)
+
+        # 3. Aplicar tinte rojo radiactivo si tiene la papa
+        if tiene_papa:
+            frame_surface.fill((160, 0, 0), special_flags=pygame.BLEND_RGB_ADD)
+
+        # 4. Escalar el personaje
+        render_size = int(personapa.size * visual_scale)
+        frame_surface = pygame.transform.scale(frame_surface, (render_size, render_size))
+        
+        # 5. Posicionar el frame
+        rect = frame_surface.get_rect(center=personapa.get_rect().center)
+
+        # ==========================================
+        # 6. MAGIA DE LAS PARTÍCULAS (AHORA DETRÁS DEL SPRITE)
+        # ==========================================
+        if not hasattr(personapa, 'particles'):
+            personapa.particles = []
+
+        if tiene_papa:
+            for _ in range(2): 
+                personapa.particles.append({
+                    'x': rect.centerx + random.randint(-15, 15),
+                    'y': rect.centery + random.randint(-5, 15),
+                    'vx': random.uniform(-1.0, 1.0),
+                    'vy': random.uniform(-3.0, -1.0),
+                    'life': random.uniform(15, 30),
+                    'max_life': 30,
+                    'color': random.choice([(255, 100, 0), (255, 50, 0), (200, 0, 0), (255, 200, 0)])
+                })
+
+        for p in personapa.particles[:]:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= 1 
+            
+            if p['life'] <= 0:
+                personapa.particles.remove(p)
+            else:
+                ratio_vida = max(0, p['life'] / p['max_life'])
+                # Hacemos el multiplicador mucho más pequeño (antes era 8, ahora es 3)
+                radio = max(1, int(3 * ratio_vida * visual_scale)) 
+                pygame.draw.circle(surface, p['color'], (int(p['x']), int(p['y'])), radio)
+
+        # ==========================================
+        # 7. DIBUJAR AL PERSONAJE (Queda SOBRE las partículas)
+        # ==========================================
+        surface.blit(frame_surface, rect)
+
+        # 8. DIBUJAR EL SOMBRERO (Queda SOBRE todo lo demás)
         if personapa.hat_index >= 0 and personapa.hat_sprites is not None:
             self._render_hat(surface, personapa, anim_time, visual_scale, rect)
 
+        # ==========================================
+        # 9. INDICADOR DE PAPA CALIENTE (FLOTANTE)
+        # ==========================================
+        if tiene_papa:
+            import math
+            # Hacemos que flote suavemente arriba y abajo usando la hora del sistema
+            tiempo = pygame.time.get_ticks() * 0.01
+            offset_y = math.sin(tiempo) * 4 # Rango de flotación
+            
+            # Posición arriba de la cabeza del personaje
+            centro_x = rect.centerx
+            centro_y = rect.top - 15 + int(offset_y)
+            
+            # Dibujamos una mini "papa" o núcleo de fuego brillante con borde
+            pygame.draw.circle(surface, (255, 69, 0), (centro_x, centro_y), int(6 * visual_scale)) # Núcleo rojo-naranja
+            pygame.draw.circle(surface, (255, 255, 0), (centro_x, centro_y), int(3 * visual_scale)) # Centro amarillo brillante
+            
     def _render_hat(self, surface: pygame.Surface, personapa, anim_time: float, visual_scale: float, character_rect: pygame.Rect) -> None:
         """Renderiza el sombrero arriba del personaje."""
 

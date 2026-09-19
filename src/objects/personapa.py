@@ -85,7 +85,7 @@ class DashTrail:
 
 class Personapa:
     def __init__(self) -> None:
-        
+
         # Sombrero del personaje
         self.hat_index: int = -1  # -1 significa sin sombrero
         self.hat_sprites = None  # instancia compartida de HatSprites
