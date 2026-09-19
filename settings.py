@@ -44,6 +44,17 @@ FRAMES = {
     "wall_tiles" : frames.generate_frames(TEXTURES["wall_tiles"], TILE_SIZE, TILE_SIZE + 10),
 }
 
+SOUNDS = {
+    "lobby": "assets/sounds/lobby.mp3",
+    "parkour": "assets/sounds/parkour.mp3",
+    "victory": "assets/sounds/victory.mp3",
+    "click": "assets/sounds/click.mp3",
+    "hover": "assets/sounds/hover.mp3",
+    "screams": [
+        f"assets/sounds/scream-{i}.mp3" for i in range(1, 14)
+    ]
+}
+
 # Le dice a SDL que cargue esta base de datos de mapeos ANTES de
 # inicializar nada de mandos, para que mandos que no traen mapeo nativo
 # en macOS (como algunos Xbox 360 Controller) sean reconocidos como

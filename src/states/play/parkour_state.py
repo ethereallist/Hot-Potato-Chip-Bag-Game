@@ -8,6 +8,7 @@ import pygame
 
 from gale.state import BaseState
 from gale.timer import Timer
+import settings
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
@@ -102,6 +103,11 @@ class ExplosionParticle:
 
 class ParkourState(BaseState):
     def enter(self, **kwargs) -> None:
+        # Cargar la música de fondo para el Parkour
+        pygame.mixer.music.load(settings.SOUNDS["parkour"])
+        pygame.mixer.music.set_volume(0.02)  # Volumen a la mitad
+        pygame.mixer.music.play(-1)
+
         self.play_state = kwargs["play_state"]
 
         # Personapas que ya venían caminando en el menú (si las hay) —

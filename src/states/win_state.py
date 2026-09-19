@@ -78,6 +78,23 @@ INPUT_UNLOCK_DELAY = FADE_IN_DURATION + 0.15
 
 class WinState(BaseState):
     def enter(self, **kwargs) -> None:
+
+        # Detenemos cualquier música previa (como la del parkour)
+        pygame.mixer.music.stop()
+        
+        # Cargamos y reproducimos la música de victoria (sin bucle, ya que es un jingle de triunfo)
+        pygame.mixer.music.load(settings.SOUNDS["victory"])
+        pygame.mixer.music.play(0)          # 0 para que se reproduzca una sola vez
+        pygame.mixer.music.set_volume(0.02)
+
+        # Asegúrate de que settings.SOUNDS tenga las rutas correctas (ej. "assets/sounds/hover.ogg")
+        self.hover_sound = pygame.mixer.Sound(settings.SOUNDS["hover"])
+        self.hover_sound.set_volume(0.1)
+        
+        self.click_sound = pygame.mixer.Sound(settings.SOUNDS["click"])
+        self.click_sound.set_volume(0.1)
+        # -------------------------------
+        
         self.play_state = kwargs["play_state"]
         self.winner_index = kwargs["winner_index"]
         self.personapas = kwargs["personapas"]
@@ -188,9 +205,12 @@ class WinState(BaseState):
         # control"), igual que en la selección de sombreros del menú.
         if input_id.endswith(("_up", "_left")):
             self.selected_index = (self.selected_index - 1) % len(OPTIONS)
+            self.hover_sound.play()
         elif input_id.endswith(("_down", "_right")):
             self.selected_index = (self.selected_index + 1) % len(OPTIONS)
+            self.hover_sound.play()
         elif input_id.endswith("_main"):
+            self.click_sound.play()
             self._confirm_selection()
 
     def _confirm_selection(self) -> None:
