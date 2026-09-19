@@ -18,6 +18,7 @@ from gale.state import HierarchicalState, BaseState, StateMachine
 
 from src.states.play.parkour_state import ParkourState
 from src.states.play.score_state import ScoreState
+from src.objects.scream import ScreamDeck
 
 
 class PlayState(HierarchicalState):
@@ -40,6 +41,8 @@ class PlayState(HierarchicalState):
         self.max_rounds = 3
         self.target_score = int(3 + 1.5 * (self.player_count - 2))
         self.scores = [0 for _ in range(self.player_count)]
+
+        self.screams = ScreamDeck.deal(self.player_count)
         
         # se reenvía personapas (ya con su sombrero elegido en el menú)
         # junto con play_state, si no, change() solo pasaba play_state y

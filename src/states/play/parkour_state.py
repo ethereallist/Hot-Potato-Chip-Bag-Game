@@ -167,6 +167,9 @@ class ParkourState(BaseState):
         # self.gamepad_controller_2.possessed_entity = personapa_4
         self.gamepad_controller_2 = None
 
+        for personapa, scream in zip(self.personapas, getattr(self.play_state, "screams", [])):
+            personapa.scream_sound = scream
+
         self._sprite_renderer = PersonapaSpriteRenderer()
         self._personapa_anim_time = [random.uniform(0, 1) for _ in self.personapas]
 
