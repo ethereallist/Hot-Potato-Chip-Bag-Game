@@ -37,8 +37,8 @@ class PlayState(HierarchicalState):
         
         self.player_count = kwargs.get("player_count", 4) #it should be 2 as minimum
         self.rounds = 0
-        self.max_rounds = 1
-        self.target_score = int(3 + 1.5 * (self.player_count - 2))
+        self.max_rounds = int(3 + 2 * (self.player_count - 2))
+        self.target_score = int(3 + 1 * (self.player_count - 2))
         self.scores = [0 for _ in range(self.player_count)]
         
         # se reenvía personapas (ya con su sombrero elegido en el menú)
