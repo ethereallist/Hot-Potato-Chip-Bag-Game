@@ -32,7 +32,12 @@ KEYBOARD_PLAYER_CONFIGS = [
     },
 ]
 
-START_POSITIONS = [(100, 100), (600, 100), (100, 400), (600, 400)]
+START_POSITIONS = [
+    (settings.WINDOW_WIDTH * 0.2, settings.WINDOW_HEIGHT * 0.2),
+    (settings.WINDOW_WIDTH * 0.8, settings.WINDOW_HEIGHT * 0.2),
+    (settings.WINDOW_WIDTH * 0.2, settings.WINDOW_HEIGHT * 0.8),
+    (settings.WINDOW_WIDTH * 0.8, settings.WINDOW_HEIGHT * 0.8)
+]
 
 COUNTDOWN_DURATION = 3.0
 ROUND_DURATION = 20.0
