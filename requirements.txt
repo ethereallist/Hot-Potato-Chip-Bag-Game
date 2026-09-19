@@ -1,1 +1,2 @@
-gale-engine
+gale-engine>=1.17.1
+pygame>=2.6.1
