@@ -43,7 +43,7 @@ TILE_FRAMES = {
     TileType.SUNKEN: [],
     TileType.WALL: settings.FRAMES["wall_tiles"],
 }
-      
+
 class VisualData():
     def __init__(
         self,
@@ -154,18 +154,29 @@ class Map:
             self.tile_size,
         )
 
-    def set_tile_by_pos(self, x: float, y: float, tile: TileType):
-        if not self.pos_is_inside_map(x, y):
-            return False
-        col, row = self.pos_to_index(x, y)
-        self.tile_layer[row][col] = tile
-        return True
-
     def set_tile_by_index(self, col: int, row: int, tile: TileType):
         if not self.index_is_inside_map(col, row):
             return False
+        
         self.tile_layer[row][col] = tile
+        
+        # Generar un nuevo frame_id correspondiente al nuevo tipo de bloque
+        frame = -1
+        if len(TILE_FRAMES[tile]) > 0:
+            frame = random.randint(0, len(TILE_FRAMES[tile]) - 1)
+            
+        self.visual_data_layer[col][row].frame_id = frame
+        
         return True
+
+    def set_tile_by_pos(self, x: float, y: float, tile: TileType):
+        if not self.pos_is_inside_map(x, y):
+            return False
+        
+        col, row = self.pos_to_index(x, y)
+        
+        # Reutilizamos set_tile_by_index para no duplicar la lógica
+        return self.set_tile_by_index(col, row, tile)
 
     def get_obj_by_pos(self, x: float, y: float):
         if not self.pos_is_inside_map(x, y):
