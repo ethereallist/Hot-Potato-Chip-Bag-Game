@@ -242,6 +242,7 @@ class Map:
             col = []
             self.sink_layer.append(col)
             for j in range(self.rows):
+                # Solo el FLOOR se hunde; las paredes (WALL) y huecos se tratan como fijos
                 if self.tile_layer[j][i] == TileType.FLOOR:
                     col.append(j + i * self.rows - nonfloor_count_so_far)
                     floor_list.append((i, j))
@@ -289,15 +290,22 @@ class Map:
         self.swap_sinking_data(old_number, new_number)
 
     def sink_random_tile(self) -> None:
-        first_nonfloor_tile = self.columns * self.rows - self.nonfloor_tile_count
-        if first_nonfloor_tile == 0:
+        # Filtramos estrictamente solo los índices de la sink_list que correspondan a suelos (FLOOR)
+        valid_floors = [
+            i for i, (col, row) in enumerate(self.sink_list) 
+            if self.tile_layer[row][col] == TileType.FLOOR
+        ]
+        
+        if not valid_floors:
             return
-        r = random.random()
-        rsqr = r * r
-        number = int((first_nonfloor_tile - 1) * rsqr)
+            
+        # Elegimos al azar únicamente de los suelos válidos
+        number = random.choice(valid_floors)
+        
+        first_nonfloor_tile = self.columns * self.rows - self.nonfloor_tile_count
         self.sink_tile(number)
-        self.swap_sinking_data(number, first_nonfloor_tile - 1)
-
+        if first_nonfloor_tile > 0:
+            self.swap_sinking_data(number, first_nonfloor_tile - 1)
     def sink_tile(self, number: int) -> None:
         col, row = self.sink_list[number]
         self.nonfloor_tile_count += 1
