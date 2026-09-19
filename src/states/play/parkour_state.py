@@ -15,28 +15,20 @@ from src.objects.player_controller import PlayerController
 from src.objects.gamepad_direct import GamepadDirectController
 from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
+from src.utilities.player_input_manager import PlayerTracker
 
 _POTATO_PASS_DOWNTIME = 0.4
 
 # Jugadores 1 y 2: teclado, vía Gale (funciona bien por eventos)
-KEYBOARD_PLAYER_CONFIGS = [
-    {
-        "device": "keyboard",
-        "left": "p1_left", "right": "p1_right", "up": "p1_up", "down": "p1_down",
-        "main_action": "p1_main", "secondary_action": "p1_secondary",
-    },
-    {
-        "device": "keyboard",
-        "left": "p2_left", "right": "p2_right", "up": "p2_up", "down": "p2_down",
-        "main_action": "p2_main", "secondary_action": "p2_secondary",
-    },
-]
+KEYBOARD_PLAYER_CONFIGS = []
+for i in range(4):
+    KEYBOARD_PLAYER_CONFIGS.append(PlayerTracker.get_player_keyboard_inputs(i+1))
 
 START_POSITIONS = [
-    (settings.WINDOW_WIDTH * 0.2, settings.WINDOW_HEIGHT * 0.2),
-    (settings.WINDOW_WIDTH * 0.8, settings.WINDOW_HEIGHT * 0.2),
-    (settings.WINDOW_WIDTH * 0.2, settings.WINDOW_HEIGHT * 0.8),
-    (settings.WINDOW_WIDTH * 0.8, settings.WINDOW_HEIGHT * 0.8)
+    (settings.TILE_SIZE * 2, settings.TILE_SIZE * 2),
+    (settings.TILE_SIZE * 11, settings.TILE_SIZE * 2),
+    (settings.TILE_SIZE * 2, settings.TILE_SIZE * 7),
+    (settings.TILE_SIZE * 11, settings.TILE_SIZE * 7)
 ]
 
 COUNTDOWN_DURATION = 3.0
@@ -136,36 +128,6 @@ class ParkourState(BaseState):
 
             self.personapas.append(personapa)
             self.controllers.append(controller)
-
-        # Jugador 3: mando, leído directo con pygame (sondeo, sin eventos de Gale)
-        if incoming and len(incoming) > 2:
-            personapa_3 = incoming[2]
-            personapa_3.move_intent = pygame.Vector2(0, 0)
-        else:
-            personapa_3 = Personapa()
-            personapa_3.position = pygame.Vector2(START_POSITIONS[2])
-        self.personapas.append(personapa_3)
-
-        self.gamepad_controller = None
-        try:
-            self.gamepad_controller = GamepadDirectController(joystick_index=0, invert_y=True)
-            self.gamepad_controller.possessed_entity = personapa_3
-        except pygame.error:
-            pass  # no hay mando conectado; el jugador 3 simplemente no se mueve
-
-        # Jugador 4: todavía sin dispositivo asignado (falta un segundo mando).
-        if incoming and len(incoming) > 3:
-            personapa_4 = incoming[3]
-            personapa_4.move_intent = pygame.Vector2(0, 0)
-        else:
-            personapa_4 = Personapa()
-            personapa_4.position = pygame.Vector2(START_POSITIONS[3])
-        self.personapas.append(personapa_4)
-
-        # TODO: cuando haya un segundo mando físico conectado, algo como:
-        # self.gamepad_controller_2 = GamepadDirectController(joystick_index=1)
-        # self.gamepad_controller_2.possessed_entity = personapa_4
-        self.gamepad_controller_2 = None
 
         self._sprite_renderer = PersonapaSpriteRenderer()
         self._personapa_anim_time = [random.uniform(0, 1) for _ in self.personapas]
@@ -344,11 +306,6 @@ class ParkourState(BaseState):
         if self.in_countdown:
             self.countdown_time_left -= dt
             return
-
-        if self.gamepad_controller is not None:
-            self.gamepad_controller.poll()
-        if self.gamepad_controller_2 is not None:
-            self.gamepad_controller_2.poll()
 
         self.round_time_left -= dt
 

@@ -565,6 +565,9 @@ class MenuState(BaseState):
         showing_arrow = self.button_state != "main"
 
         for i, option in enumerate(OPTIONS):
+            if option == "SALIR" and self.selecting_hats:
+                continue
+            
             is_selected = i == self.selected_index
             bounce = math.sin(self._time * 6) * 4 if is_selected else 0
 
@@ -588,12 +591,9 @@ class MenuState(BaseState):
             pygame.draw.rect(surface, fill, rect, border_radius=18)
             pygame.draw.rect(surface, OUTLINE_COLOR, rect, width=4, border_radius=18)
 
-            if i == 1 and showing_arrow:
-                self._draw_back_arrow(surface, rect, text_color)
-            else:
-                label = self._button_label_surfaces[(option, is_selected)]
-                label_rect = label.get_rect(center=rect.center)
-                surface.blit(label, label_rect)
+            label = self._button_label_surfaces[(option, is_selected)]
+            label_rect = label.get_rect(center=rect.center)
+            surface.blit(label, label_rect)
 
     def _draw_back_arrow(self, surface: pygame.Surface, rect: pygame.Rect, color) -> None:
         cx, cy = rect.center
