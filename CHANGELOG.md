@@ -8,19 +8,42 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
-- Diagrama de clases inicial: `PlayState`, `MenuState`, `WinState`.
-- Subestados de `PlayState`: `ConstructionState`, `ScoreState`, `ParkourState`.
-- Clase `Player` con flags de intención, posición, velocidad y estado de papa caliente.
-- Clase `Consumible` para powerups temporales.
-- Clase `Mapa` con dos capas y casillas manipulables (suelo, hueco, pared).
+- **Audio:** Integración de sonidos en los botones, el lobby, el estado de victoria (`WinState`) y el estado de parkour (`ParkourState`).
+- **Estados de Juego:** Implementación funcional de los estados de Puntuación (`ScoreState`), Victoria (`WinState`) y adición del Podio.
+- **Transiciones:** Lógica para transicionar fluidamente entre los estados de puntuación y parkour, complementada con clases de utilidad para transiciones visuales.
+- **Interfaz y HUD:**
+  - Barra de tiempo (*Time bar*) añadida.
+  - Clase `Cursor` y utilidades de `Stencil` añadidas.
+  - Animación de los jugadores moviéndose e interactuando en el menú principal.
+- **Mapa:** Texturas y lógica para las casillas (*tiles*) del mapa integradas.
+- **Parkour State:** Inserción de los personapas jugables y partículas de explosión dentro del estado de parkour.
+- **Sistemas Base:** 
+  - Clase `PlayerTracker` para el seguimiento estadístico de los jugadores.
+  - Diagrama de clases inicial: `PlayState`, `MenuState`, `WinState`.
+  - Subestados de `PlayState`: `ConstructionState`, `ScoreState`, `ParkourState`.
+  - Clase `Player` con flags de intención, posición, velocidad y estado de papa caliente.
+  - Clase `Consumible` para powerups temporales.
+  - Clase `Mapa` con dos capas y casillas manipulables (suelo, hueco, pared).
 
 ### Changed
+- **Animaciones:** La animación de la **papa caliente** se actualizó para utilizar el sistema `personapa_sprite_renderer`.
+- **Animaciones:** Se mejoró a la calidad más alta la animación del ciclo de caminar (*walking cycle*) de los personajes.
+- **Tipografía:** Se ajustaron las tipografías del menú principal.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- **Físicas y Colisiones:** Solucionado el problema de las paredes cayendo (*falling walls*).
+- **Mecánicas:** Arreglados los problemas al pasar la papa caliente entre jugadores.
+- **Visuales:** Corrección en la visualización de las partículas del *dash* en los personapas y reparación de un bug en la capa de datos visuales (`visual_data_layer`).
+- **Mapa:** Arreglado el error que causaba que las casillas (*tiles*) se vieran hundidas o sin texturas cargadas.
+- **Lógica de Juego:** 
+  - Corrección del `ScoreState` para que funcione correctamente para todas las personapas.
+  - Solucionado el problema con el seguimiento (*tracking*) de las rondas y puntuaciones globales.
+  - Corrección en la lógica de los comandos del `PlayerController`.
+  - Corrección menor añadiendo un argumento posicional faltante (*Added positional arg*).
 
 ### Security
 
@@ -34,7 +57,7 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 [0.1.0]: https://github.com/usuario/hot-potato-chip-bag/releases/tag/v0.1.0
 -->
 
-## V0.1.0 -2026/09/16
+## V0.1.0 - 2026-09-16
 
 ### Added
 
@@ -47,14 +70,13 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
-Map
+- Map
 
 ## [0.6.0] - 2026-09-17
 
 ### Added
 
-PlayState
-
+- PlayState
 
 ## [0.7.0] - 2026-09-17
 
@@ -69,7 +91,7 @@ PlayState
 ## [0.7.1] - 2026-09-17
 
 ### Fixed
-- Se arregló la colision con las paredes, el collidebox del jugador ahora se obtiene con getrect.
+- Se arregló la colisión con las paredes, el collidebox del jugador ahora se obtiene con getrect.
 
 ## [0.8.0] - 2026-09-17
 
