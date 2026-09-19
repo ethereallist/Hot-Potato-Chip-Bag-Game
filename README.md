@@ -38,22 +38,29 @@ rotando y moviendo casillas antes de volver a jugar.
 
 ## Controles
 
-Cada jugador tiene una **acción principal** (hacer *dash* en el parkour, confirmar en los menús)
-y una **acción secundaria** (reservada, todavía sin uso).
+Cada jugador tiene una **acción principal** (hacer *dash* en el parkour, mover el cursor/confirmar en
+los menús y en la construcción) y una **acción secundaria** (¡gritar!).
 
-| Jugador | Dispositivo | Mover                 | Acción principal (dash / confirmar) | Acción secundaria |
-| ------- | ----------- | --------------------- | ----------------------------------- | ----------------- |
-| 1       | Teclado     | `W` `A` `S` `D`       | `E`                                 | `Q`               |
-| 2       | Teclado     | Flechas `←` `↑` `↓` `→` | `Espacio`                         | `Enter`           |
-| 3       | Mando       | Stick izquierdo       | Botón `A` / `✕` (botón 0)           | Botón `B` / `○` (botón 1) |
-| 4       | *Pendiente* | —                     | —                                   | —                 |
+| Acción              | Jugador 1 (teclado) | Jugador 2 (teclado)     | Jugador 3 (mando)                    | Jugador 4 |
+| ------------------- | ------------------- | ----------------------- | ------------------------------------ | --------- |
+| **Mover**           | `W` `A` `S` `D`     | Flechas `←` `↑` `↓` `→` | Stick izquierdo                      | *Pendiente* |
+| **Dash**            | `E`                 | `Espacio`               | Botón `A` / `✕` (botón 0)            | *Pendiente* |
+| **Acción / cursor** | `E`                 | `Espacio`               | Botón `A` / `✕` (botón 0)            | *Pendiente* |
+| **Gritar**          | `Q`                 | `Enter`                 | Botón `B` / `○` (botón 1)            | *Pendiente* |
+| **Confirmar**       | `E`                 | `Espacio`               | Botón `A` / `✕` (botón 0)            | *Pendiente* |
 
+- **Dash, Acción / cursor y Confirmar** son la misma tecla: la **acción principal** de cada jugador.
+- **Gritar** es la **acción secundaria**. Al empezar cada partida se reparte un grito distinto a cada jugador
+  (hay 13 sonidos, así que van rotando de una partida a otra). Solo suena al presionar el botón, no mientras
+  lo mantienes.
 - **Menú principal:** `W` / `S` para elegir y `E` para confirmar (controles del jugador 1).
 - **Elegir sombrero:** los jugadores eligen por turnos con `W` `A` `S` `D` y confirman con `E`.
 - **Pantalla de victoria:** cualquier jugador puede moverse entre las opciones y confirmar con su acción principal.
-- El jugador 3 usa el **primer mando** que detecte el sistema (la numeración de los botones puede variar según el modelo de mando; ver [Probar tus mandos](#probar-tus-mandos)). El jugador 4 todavía no tiene dispositivo
-  asignado en el parkour (falta un segundo mando); sus teclas (`F` `H` `T` `G` + `Y` / `R`) y las del jugador 3
-  en teclado (`J` `L` `I` `K` + `P` / `O`) ya están definidas en `settings.py`, reservadas para más adelante.
+- El jugador 3 usa el **primer mando** que detecte el sistema (la numeración de los botones puede variar según
+  el modelo de mando; ver [Probar tus mandos](#probar-tus-mandos)).
+- El jugador 4 todavía no tiene dispositivo asignado en el parkour (falta un segundo mando). Sus teclas
+  (`F` `H` `T` `G` + `Y` / `R`) y las del jugador 3 en teclado (`J` `L` `I` `K` + `P` / `O`) ya están definidas
+  en `settings.py`, reservadas para más adelante.
 
 ## Requisitos e instalación
 

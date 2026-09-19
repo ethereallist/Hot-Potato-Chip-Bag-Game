@@ -103,3 +103,22 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 
 - Se añadió funcionalidad de selección de sombreros para cada personaje en el menú principal.
+
+## [0.10.0] - 2026-09-18
+
+### Added
+- **Gritos como acción secundaria** (`scream.py`): al empezar cada partida se reparte un grito distinto a cada jugador y los 13 sonidos van rotando entre partidas para usarlos todos. Solo suena al presionar la tecla (`Q`, `Enter`, `O` o `R` según el jugador), no mientras se mantiene.
+- **Pantalla de victoria (`WinState`):**
+  - Confeti de colores que cae desde arriba (`confetti.py`), siguiendo el patrón del sistema de partículas del dash.
+  - Frases que se turnan bajo el puntaje, en lugar de "Coronado con".
+  - Fondo de franjas diagonales, igual que el menú principal y el puntaje.
+- **Documentación:** README completado (instalación con `venv`, controles de los 4 jugadores, solución de problemas, flujo y arquitectura) y `requirements.txt` con `pygame` explícito.
+
+### Changed
+- La partida dura 3 rondas fijas (antes dependía del número de jugadores).
+- Los 4 jugadores se controlan con teclado en el parkour (configuraciones generadas con `PlayerTracker.get_player_keyboard_inputs`); el mando del jugador 3 ya no se usa ahí.
+- `WinState`: el fundido de salida dura 0.7 s (antes 0.5 s) y los botones se desvanecen con su propia curva.
+- Se quitaron los `print` informativos de `HatSprites` de la consola.
+
+### Fixed
+- `WinState`: el botón seleccionado aparecía y desaparecía de golpe (ahora el resaltado es gradual) y quedaban rectángulos vacíos al final del fundido.
