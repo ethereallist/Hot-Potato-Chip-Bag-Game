@@ -53,8 +53,8 @@ class PlayerTracker:
             "right" : f"p{player}_right",
             "up" : f"p{player}_up",
             "down" : f"p{player}_down",
-            "main_action" : f"p{player}_main_action",
-            "secondary_action" : f"p{player}_secondary_action",
+            "main_action" : f"p{player}_main",
+            "secondary_action" : f"p{player}_secondary",
         }
         return d
         
