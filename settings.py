@@ -10,6 +10,8 @@ import pygame
 
 BASE_DIR = pathlib.Path(__file__).parent
 
+from gale import frames
+
 from gale.input_handler import (
     InputHandler,
     GAMEPAD_AXIS_RIGHT_X,
@@ -22,8 +24,35 @@ from gale.input_handler import (
     GAMEPAD_BUTTON_DPAD_RIGHT,
 )
 
+# TODO: resolución de ventana / resolución virtual
+WINDOW_WIDTH = 700
+WINDOW_HEIGHT = 500
+# usado por src/states/map/map.py
+TILE_SIZE = 48
+
 SHAPES = {
-    "cursor" : pygame.image.load(BASE_DIR / "assets" / "images" / "cursor_shape.png")
+    "cursor" : pygame.image.load(BASE_DIR / "assets" / "images" / "cursor_shape.png"),
+}
+
+TEXTURES = {
+    "floor_tiles" : pygame.image.load(BASE_DIR / "assets" / "images" / "floor_tiles.png"),
+    "wall_tiles" : pygame.image.load(BASE_DIR / "assets" / "images" / "wall_tiles.png"),
+}
+
+FRAMES = {
+    "floor_tiles" : frames.generate_frames(TEXTURES["floor_tiles"], TILE_SIZE, TILE_SIZE + 10),
+    "wall_tiles" : frames.generate_frames(TEXTURES["wall_tiles"], TILE_SIZE, TILE_SIZE + 10),
+}
+
+SOUNDS = {
+    "lobby": "assets/sounds/lobby.mp3",
+    "parkour": "assets/sounds/parkour.mp3",
+    "victory": "assets/sounds/victory.mp3",
+    "click": "assets/sounds/click.mp3",
+    "hover": "assets/sounds/hover.mp3",
+    "screams": [
+        f"assets/sounds/scream-{i}.mp3" for i in range(1, 14)
+    ]
 }
 
 # Le dice a SDL que cargue esta base de datos de mapeos ANTES de

@@ -37,7 +37,7 @@ class PlayState(HierarchicalState):
         
         self.player_count = kwargs.get("player_count", 4) #it should be 2 as minimum
         self.rounds = 0
-        self.max_rounds = int(3 + 2 * (self.player_count - 1))
+        self.max_rounds = 1
         self.target_score = int(3 + 1.5 * (self.player_count - 2))
         self.scores = [0 for _ in range(self.player_count)]
         
@@ -50,10 +50,18 @@ class PlayState(HierarchicalState):
         return self.rounds >= self.max_rounds
         
     def check_winner(self) -> int:
-        for i in range(self.player_count):
-            if self.scores[i] >= self.target_score:
-                return i
+        # Solo hay ganador cuando se jugaron TODAS las rondas (self.max_rounds,
+        # que depende de player_count) — antes comparaba contra un 3 fijo,
+        # así que con 4 jugadores (9 rondas) el juego terminaba carrera muy
+        # temprano en vez de esperar a que se acumularan puntos en todas.
+        if self.are_rounds_over():
+            # Buscamos cuál es el puntaje más alto
+            max_score = max(self.scores)
+            # Devolvemos el índice del jugador que tiene ese puntaje
+            winner_index = self.scores.index(max_score)
+            return winner_index
         
+        # Si aún no se jugaron todas las rondas, devolvemos -1 (aún no hay ganador)
         return -1
         
     def return_to_menu(self):

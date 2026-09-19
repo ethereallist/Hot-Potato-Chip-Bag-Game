@@ -7,6 +7,8 @@ import random
 import pygame
 
 from gale.state import BaseState
+from gale.timer import Timer
+import settings
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
@@ -14,6 +16,7 @@ from src.objects.gamepad_direct import GamepadDirectController
 from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
 
+_POTATO_PASS_DOWNTIME = 0.4
 
 # Jugadores 1 y 2: teclado, vía Gale (funciona bien por eventos)
 KEYBOARD_PLAYER_CONFIGS = [
@@ -100,6 +103,11 @@ class ExplosionParticle:
 
 class ParkourState(BaseState):
     def enter(self, **kwargs) -> None:
+        # Cargar la música de fondo para el Parkour
+        pygame.mixer.music.load(settings.SOUNDS["parkour"])
+        pygame.mixer.music.set_volume(0.02)  # Volumen a la mitad
+        pygame.mixer.music.play(-1)
+
         self.play_state = kwargs["play_state"]
 
         # Personapas que ya venían caminando en el menú (si las hay) —
@@ -171,6 +179,16 @@ class ParkourState(BaseState):
         self.mapa = Map(x=0, y=0, columns=14, rows=10)
         self._construir_arena_de_prueba()
 
+        if "mapa" in kwargs:
+            self.mapa = kwargs["mapa"]
+            
+        # NUEVO: Recalcular las listas de hundimiento basado en lo que
+        # construyeron los jugadores, para que hunda solo el suelo (FLOOR).
+        if hasattr(self, 'mapa'):
+            self.mapa.reset_sinking()
+        
+        self.assign_hot_potato_randomly()
+        self.pass_allowed = True
         self.countdown_time_left = COUNTDOWN_DURATION
         self.round_time_left = ROUND_DURATION
         self.sink_timer = SINK_START_DELAY
@@ -188,6 +206,40 @@ class ParkourState(BaseState):
             self._font = pygame.font.SysFont(None, 72)
             self._hud_font = pygame.font.SysFont(None, 28)
             self._hud_font_small = pygame.font.SysFont(None, 12)
+
+        if "personapas" in kwargs:
+            self.personapas = kwargs["personapas"]
+            
+            # 1. Revivir a todos para la nueva ronda y quitarles la papa
+            # por si acaso alguien la tenía de la ronda anterior.
+            for i, p in enumerate(self.personapas):
+                p.is_alive = True
+                p.alpha = 255            
+                
+                # Reubicarlos en su posición de inicio para la nueva ronda
+                # (en vez de (0,0), que podría caer dentro de una pared)
+                if i < len(START_POSITIONS):
+                    p.position = pygame.Vector2(START_POSITIONS[i])
+                
+                # Le quitamos la papa a todos primero
+                p.is_hot_potato = False
+
+            # 2. Asignar la papa a un jugador AL AZAR
+            jugador_elegido = random.choice(self.personapas)
+            jugador_elegido.is_hot_potato = True
+
+    def assign_hot_potato_randomly(self) -> None:
+        """Le quita la papa a todos y se la asigna a alguien al azar
+        entre los que siguen VIVOS (para no dársela a quien ya cayó en
+        un hoyo o ya explotó). Se usa tanto al iniciar la ronda como
+        cuando, a mitad de partida, el que tenía la papa muere y hay
+        que pasarla a otro."""
+        for p in self.personapas:
+            p.is_hot_potato = False
+
+        alive = [p for p in self.personapas if p.is_alive]
+        if alive:
+            random.choice(alive).is_hot_potato = True
 
     def _render_hud(self, surface: pygame.Surface) -> None:
         # --- Configuración de dimensiones y posición ---
@@ -242,7 +294,9 @@ class ParkourState(BaseState):
             text_color = (245, 245, 245)
 
         # Texto de etiqueta pequeñita ("PAPA HOT")
-        label_surf = self._hud_font_small.render("¡PASA LA PAPA!", True, (160, 165, 180))
+        ronda_actual = self.play_state.rounds + 1
+        texto_label = f"¡PASA LA PAPA!  -  Ronda {ronda_actual}"
+        label_surf = self._hud_font_small.render(texto_label, True, (160, 165, 180))
         hud_surface.blit(label_surf, (bar_x, 8))
 
         # Texto principal del reloj
@@ -322,6 +376,8 @@ class ParkourState(BaseState):
                 if not personapa.is_dashing:
                     personapa.is_alive = False
                     self.death_log[i] = False
+                    if personapa.is_hot_potato:
+                        self.assign_hot_potato_randomly()
                     continue
            
             self.mapa.register_sink(*personapa.get_rect().center)
@@ -391,19 +447,23 @@ class ParkourState(BaseState):
             else:
                 personapa.position.y +=  upoverlap if upoverlap > 0 else -downoverlap
                 
+    def reallow_passing(self):
+        self.pass_allowed = True
         
     def _check_player_collisions(self) -> None:
+        if not self.pass_allowed:
+            return
+            
         alive = [p for p in self.personapas if p.is_alive]
         for i, a in enumerate(alive):
             for b in alive[i + 1:]:
                 if not a.collides_with(b):
                     continue
-                if a.is_hot_potato:
-                    a.is_hot_potato = False
-                    b.is_hot_potato = True
-                elif b.is_hot_potato:
-                    b.is_hot_potato = False
-                    a.is_hot_potato = True
+                if a.is_hot_potato or b.is_hot_potato:
+                    a.is_hot_potato = not a.is_hot_potato
+                    b.is_hot_potato = not b.is_hot_potato
+                    self.pass_allowed = False
+                    Timer.after(_POTATO_PASS_DOWNTIME,self.reallow_passing)
 
     def _check_object_collisions(self) -> None:
         for personapa in self.personapas:
@@ -481,10 +541,15 @@ class ParkourState(BaseState):
         return sum(1 for p in self.personapas if p.is_alive)
 
     def _end_round(self) -> None:
+        # Recorremos todas las personapas para desactivar la papa caliente
+        for p in self.personapas:
+            p.is_hot_potato = False
+
         self.state_machine.change(
             "score",
             death_log=self.death_log,
             play_state=self.play_state,
+            personapas=self.personapas  # ¡Importante para poder dibujarlas en los podios!
         )
 
     def render(self, surface: pygame.Surface) -> None:
@@ -501,11 +566,11 @@ class ParkourState(BaseState):
             self._sprite_renderer.render(
                 surface, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
             )
-            if personapa.is_hot_potato:
-                pygame.draw.circle(
-                    surface, "yellow", personapa.get_rect().center,
-                    personapa.size // 2 + 6, width=3,
-                )
+            #if personapa.is_hot_potato:
+                #pygame.draw.circle(
+                    #surface, "yellow", personapa.get_rect().center,
+                    #personapa.size // 2 + 6, width=3,
+                #)
 
         # Dibujar la barra superior e interfaz
         self._render_hud(surface)
