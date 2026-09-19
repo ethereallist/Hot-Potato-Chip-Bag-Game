@@ -301,12 +301,22 @@ class Map:
     def sink_tile(self, number: int) -> None:
         col, row = self.sink_list[number]
         self.nonfloor_tile_count += 1
+        
+        tile_type = self.tile_layer[row][col]
+        frame = self.visual_data_layer[col][row].frame_id
+        
+        # SALVAGUARDA: Si el bloque no tiene textura (es un hueco o ya se hundió),
+        # o no tiene un frame válido, simplemente lo hundimos lógicamente sin animación.
+        if TILE_TEXTURES[tile_type] is None or frame == -1:
+            self.tile_layer[row][col] = TileType.SUNKEN
+            return
+            
         self.tile_animations.append(
             TileAnimation(
                 col,
                 row,
-                self.tile_layer[row][col],
-                self.visual_data_layer[col][row].frame_id,
+                tile_type,
+                frame,
                 self
             )
         )

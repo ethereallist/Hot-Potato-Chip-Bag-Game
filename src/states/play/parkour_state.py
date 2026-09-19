@@ -172,6 +172,14 @@ class ParkourState(BaseState):
 
         self.mapa = Map(x=0, y=0, columns=14, rows=10)
         self._construir_arena_de_prueba()
+
+        if "mapa" in kwargs:
+            self.mapa = kwargs["mapa"]
+            
+        # NUEVO: Recalcular las listas de hundimiento basado en lo que
+        # construyeron los jugadores, para que hunda solo el suelo (FLOOR).
+        if hasattr(self, 'mapa'):
+            self.mapa.reset_sinking()
         
         self.assign_hot_potato_randomly()
         self.pass_allowed = True
