@@ -129,6 +129,9 @@ class ParkourState(BaseState):
             self.personapas.append(personapa)
             self.controllers.append(controller)
 
+        for personapa, scream in zip(self.personapas, getattr(self.play_state, "screams", [])):
+            personapa.scream_sound = scream
+
         self._sprite_renderer = PersonapaSpriteRenderer()
         self._personapa_anim_time = [random.uniform(0, 1) for _ in self.personapas]
 
