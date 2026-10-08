@@ -13,16 +13,12 @@ class ScoreState(BaseState):
         self.death_log = kwargs["death_log"]
         self.personapas = kwargs["personapas"]
 
-        # 1. Actualizar puntajes
-        for i, survived in enumerate(self.death_log):
-            if survived:
-                self.play_state.scores[i] += 1
         self.play_state.rounds += 1
 
         self.renderer = PersonapaSpriteRenderer()
         self.anim_time = 0.0
 
-        # 2. Configurar podios
+        # 1. Configurar podios
         self.podios = []
         screen_w, screen_h = pygame.display.get_surface().get_size()
         ancho_podio = 80
@@ -34,17 +30,27 @@ class ScoreState(BaseState):
 
         for i in range(len(self.personapas)):
             puntos = self.play_state.scores[i]
-            altura = 40 + (puntos * 40)  # La barra crece según los puntos
+            #la altura es inicialmente minima, pero La barra crece en el tween según los puntos
             podio = Podio({
                 "x": start_x + (ancho_podio + espacio) * i,
                 "y": screen_h - 130, # Espacio extra abajo para los números
                 "width": ancho_podio,
-                "height": altura,
+                "height": 5,
                 "color": colores[i % len(colores)]
             })
             self.podios.append(podio)
 
-        # 3. Fuentes estilo UI
+        
+        # 2. empezar tween de los podios
+        self.tween_podio_heights(True)
+        
+        # 3. Actualizar puntajes
+        for i, survived in enumerate(self.death_log):
+
+            if survived:
+                self.play_state.scores[i] += 1
+
+        # 4. Fuentes estilo UI
         try:
             self.font = pygame.font.Font("assets/fonts/Hansief.otf", 40)
         except:
@@ -62,6 +68,24 @@ class ScoreState(BaseState):
 
         # Esperar 3.5 segundos mostrando resultados y luego iniciar transición
         Timer.after(3.5, self._start_transition)
+
+    def tween_podio_heights(self, repeat: bool):
+        altura = 40
+        to_tween = []
+
+        for i in range(len(self.personapas)):
+            puntos = self.play_state.scores[i]
+            pair = (self.podios[i],{"height":(puntos + 0.5)*altura})
+            to_tween.append(pair)
+
+        o_f = lambda: self.tween_podio_heights(False) if repeat else None
+
+        Timer.tween(
+            1,
+            to_tween,
+            ease_function_name="out_cubic",
+            on_finish= o_f,
+        )
 
     def _start_transition(self):
         self.is_transitioning = True
