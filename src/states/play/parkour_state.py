@@ -333,11 +333,7 @@ class ParkourState(BaseState):
             if not personapa.is_alive:
                 continue
             
-            tile = self.mapa.get_tile_by_pos(*personapa.get_rect().center)
-            if (
-                tile == TileType.HOLE
-                or tile == None
-            ):
+            if not self.mapa.is_solid_ground_by_pos(*personapa.get_rect().center):
                 if not personapa.is_dashing:
                     personapa.is_alive = False
                     self.death_log[i] = False

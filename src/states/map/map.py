@@ -21,7 +21,9 @@ class TileType(IntEnum):
     FLOOR = 0
     HOLE = 1
     WALL = 2
-    SUNKEN = 3  # casilla que se ha hundido (se interpreta igual que HOLE a nivel de logica)
+    SHAKING = 3  # casilla que se va a hundir pronto (se interpreta igual que FLOOR a nivel de logica)
+    SINKING = 4  # casilla que se va a hundir pronto (se interpreta igual que HOLE a nivel de logica)
+    SUNKEN = 5  # casilla que se ha hundido (se interpreta igual que HOLE a nivel de logica)
 
 COLOR_PALETTE = {
     TileType.FLOOR: (170, 150, 120),
@@ -44,15 +46,27 @@ TILE_FRAMES = {
     TileType.WALL: settings.FRAMES["wall_tiles"],
 }
 
+_SHAKE_TIMES = 4
+_SHAKE_DISTANCE = 5
+_FALL_DISTANCE = 100
+
 class VisualData():
     def __init__(
         self,
         frame_id: int,
     ):
+        self.progress = 0
+        self.shaking_mode = True
         self.frame_id = frame_id
-        self.y_offset = 0
         self.transparent_texture = None
+
+    def get_y_offset(self):
+        if self.shaking_mode:
+            val = self.progress * _SHAKE_TIMES + 0.5
+            y = (val % 1) * _SHAKE_DISTANCE * 2 - _SHAKE_DISTANCE
+            return y if (val % 2 < 1) else -y 
         
+        return self.progress * _FALL_DISTANCE
 
 class Map:
     def __init__(self, x: float, y: float, columns: int, rows: int) -> None:
@@ -129,14 +143,56 @@ class Map:
         if not self.pos_is_inside_map(x, y):
             return None
         col, row = self.pos_to_index(x, y)
-        tile = self.tile_layer[row][col]
-        return TileType.HOLE if tile == TileType.SUNKEN else tile
+        return self.get_tile_by_index(col, row)
 
     def get_tile_by_index(self, col: int, row: int):
         if not self.index_is_inside_map(col, row):
             return None
         tile = self.tile_layer[row][col]
-        return TileType.HOLE if tile == TileType.SUNKEN else tile
+
+        if tile == TileType.SUNKEN:
+            return TileType.HOLE
+
+        if tile == TileType.SINKING:
+            return TileType.FLOOR
+
+        return tile
+
+    def get_visual_tile_type(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return None
+        tile = self.tile_layer[row][col]
+
+        if tile == TileType.SUNKEN:
+            return TileType.HOLE
+
+        if (
+            tile == TileType.SINKING 
+            or tile == TileType.SHAKING
+        ):
+            return TileType.FLOOR
+        
+        return tile
+
+    def is_solid_ground_by_pos(self, x: float, y: float):
+        if not self.pos_is_inside_map(x, y):
+            return None
+        col, row = self.pos_to_index(x, y)
+        return self.is_solid_ground_by_index(col, row)
+
+    def is_solid_ground_by_index(self, col: int, row: int):
+        if not self.index_is_inside_map(col, row):
+            return False
+        tile = self.tile_layer[row][col]
+
+        if (
+            tile == TileType.FLOOR 
+            or tile == TileType.WALL
+            or tile == TileType.SHAKING
+        ):            
+            return True
+
+        return False
 
     def get_rect_by_pos(self, x: float, y: float):
         if not self.pos_is_inside_map(x, y):
@@ -306,6 +362,7 @@ class Map:
         self.sink_tile(number)
         if first_nonfloor_tile > 0:
             self.swap_sinking_data(number, first_nonfloor_tile - 1)
+
     def sink_tile(self, number: int) -> None:
         col, row = self.sink_list[number]
         self.nonfloor_tile_count += 1
@@ -318,7 +375,16 @@ class Map:
         if TILE_TEXTURES[tile_type] is None or frame == -1:
             self.tile_layer[row][col] = TileType.SUNKEN
             return
-            
+
+        self.tile_layer[row][col] = TileType.SHAKING
+        self.visual_data_layer[col][row].progress = 0
+        Timer.tween(
+            0.7,
+            [(self.visual_data_layer[col][row],{"progress":1})],
+            ease_function_name="out_cubic",
+            on_finish=lambda r=row, c=col: self.sink_animation(r,c)
+        )
+        return
         self.tile_animations.append(
             TileAnimation(
                 col,
@@ -328,6 +394,20 @@ class Map:
                 self
             )
         )
+
+    def sink_animation(self, row: int, col: int):
+        self.tile_layer[row][col] = TileType.SINKING
+        self.visual_data_layer[col][row].progress = 0
+        self.visual_data_layer[col][row].shaking_mode = False
+        Timer.tween(
+            1.5,
+            [(self.visual_data_layer[col][row],{"progress":1})],
+            ease_function_name="in_cubic",
+            on_finish=lambda r=row, c=col: self.set_sunken(r,c)
+        )
+
+    def set_sunken(self, row: int, col: int):
+        self.tile_layer[row][col] = TileType.SUNKEN
 
     def update(self, dt: float) -> None:
         for a in self.tile_animations:
@@ -339,14 +419,14 @@ class Map:
     def render(self, surface: pygame.Surface) -> None:
         for row in range(self.rows):
             for col in range(self.columns):
-                tile_value = self.get_tile_by_index(col, row)
+                tile_value = self.get_visual_tile_type(col, row)
                 if tile_value == TileType.HOLE:
                     continue
                 
                 color = COLOR_PALETTE.get(tile_value, (0, 0, 0))
                 pos_x = self.x + (col * self.tile_size)
                 pos_y = self.y + (row * self.tile_size)
-                y_offset = self.visual_data_layer[col][row].y_offset
+                y_offset = self.visual_data_layer[col][row].get_y_offset()
                 
                 if not (texture := TILE_TEXTURES[tile_value]) == None:
                     frame_id = self.visual_data_layer[col][row].frame_id
