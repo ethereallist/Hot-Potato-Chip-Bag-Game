@@ -68,6 +68,11 @@ class VisualData():
         
         return self.progress * _FALL_DISTANCE
 
+    def get_alpha(self):
+        if not self.shaking_mode:
+            return 255 - 255 * self.progress
+        return 255
+
 class Map:
     def __init__(self, x: float, y: float, columns: int, rows: int) -> None:
         self.x = x
@@ -431,7 +436,10 @@ class Map:
                 if not (texture := TILE_TEXTURES[tile_value]) == None:
                     frame_id = self.visual_data_layer[col][row].frame_id
                     if not frame_id == -1:
+                        #old_alpha = texture.get_alpha()
+                        texture.set_alpha(self.visual_data_layer[col][row].get_alpha())
                         surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
+                        #texture.set_alpha(old_alpha)
                 else:
                     rect = pygame.Rect(pos_x, pos_y + y_offset, self.tile_size, self.tile_size)
                     pygame.draw.rect(surface, color, rect)
