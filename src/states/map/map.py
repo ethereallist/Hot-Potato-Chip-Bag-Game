@@ -371,7 +371,6 @@ class Map:
         first_nonfloor_tile = self.columns * self.rows - self.nonfloor_tile_count
         self.sink_tile(number)
         if first_nonfloor_tile > 0:
-            print(f"floor:{number} nonfloor:{first_nonfloor_tile}")
             self.swap_sinking_data(number, first_nonfloor_tile - 1)
 
     def sink_tile(self, number: int) -> None:
@@ -434,9 +433,6 @@ class Map:
                         texture.set_alpha(self.visual_data_layer[col][row].get_alpha())
                         surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
                         #texture.set_alpha(old_alpha)
-                        rect = pygame.Rect(pos_x, pos_y + y_offset, 5, 5)
-                        c = 1 - self.sink_layer[col][row]/len(self.sink_list)
-                        pygame.draw.rect(surface, (c*255,c*255,c*255), rect)
                         
                 else:
                     rect = pygame.Rect(pos_x, pos_y + y_offset, self.tile_size, self.tile_size)
