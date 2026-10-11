@@ -88,8 +88,6 @@ class Map:
         self.visual_data_layer = []
         self.set_up_visual_data_layer()
         
-        self.tile_animations = []
-        
         self.object_layer = [
             [-1 for _ in range(columns)] for _ in range(rows)
         ]
@@ -99,7 +97,7 @@ class Map:
         self.sink_layer = []
         self.sink_list = []
         self.nonfloor_tile_count = 0
-        self.recount_nonfloor_tiles()
+        #self.recount_nonfloor_tiles()
         self.reset_sinking()
 
     # --- Construcción (ConstructionState) ---
@@ -294,8 +292,9 @@ class Map:
     # --- Hundimiento progresivo de casillas (sistema de tu compañero) ---
 
     def reset_sinking(self) -> None:
-        nonfloor_count_so_far = 0
+        nonfloor_count = 0
         self.sink_layer = []
+        self.sink_list = []
         floor_list = []
         nonfloor_list = []
 
@@ -305,17 +304,21 @@ class Map:
             for j in range(self.rows):
                 # Solo el FLOOR se hunde; las paredes (WALL) y huecos se tratan como fijos
                 if self.tile_layer[j][i] == TileType.FLOOR:
-                    col.append(j + i * self.rows - nonfloor_count_so_far)
                     floor_list.append((i, j))
                 else:
-                    col.append(self.columns * self.rows - 1 - nonfloor_count_so_far)
                     nonfloor_list.append((i, j))
-                    nonfloor_count_so_far += 1
+                    nonfloor_count += 1
+                col.append(-1)
 
-        self.sink_list = floor_list
-        for i in range(nonfloor_count_so_far):
-            index_pair = nonfloor_list[nonfloor_count_so_far - 1 - i]
-            self.sink_list.append(index_pair)
+        random.shuffle(floor_list)
+        self.sink_list = floor_list + nonfloor_list
+
+        for i in range(len(self.sink_list)):
+            index_pair = self.sink_list[i]
+            self.sink_layer[index_pair[0]][index_pair[1]] = i
+
+        self.nonfloor_tile_count = nonfloor_count
+
 
     def unsink(self):
         for i in range(self.columns):
@@ -332,9 +335,9 @@ class Map:
         self.nonfloor_tile_count = count
 
     def swap_sinking_data(self, number: int, other: int) -> None:
-        other_indx = self.sink_list[other]
+        other_index = self.sink_list[other]
         self.sink_list[other] = self.sink_list[number]
-        self.sink_list[number] = other_indx
+        self.sink_list[number] = other_index
         self.sink_layer[self.sink_list[number][0]][self.sink_list[number][1]] = number
         self.sink_layer[self.sink_list[other][0]][self.sink_list[other][1]] = other
 
@@ -361,11 +364,14 @@ class Map:
             return
             
         # Elegimos al azar únicamente de los suelos válidos
-        number = random.choice(valid_floors)
+        i = random.random()
+        i = i * i * (len(valid_floors) - 1)/8
+        number = valid_floors[int(i)]
         
         first_nonfloor_tile = self.columns * self.rows - self.nonfloor_tile_count
         self.sink_tile(number)
         if first_nonfloor_tile > 0:
+            print(f"floor:{number} nonfloor:{first_nonfloor_tile}")
             self.swap_sinking_data(number, first_nonfloor_tile - 1)
 
     def sink_tile(self, number: int) -> None:
@@ -389,16 +395,6 @@ class Map:
             ease_function_name="out_cubic",
             on_finish=lambda r=row, c=col: self.sink_animation(r,c)
         )
-        return
-        self.tile_animations.append(
-            TileAnimation(
-                col,
-                row,
-                tile_type,
-                frame,
-                self
-            )
-        )
 
     def sink_animation(self, row: int, col: int):
         self.tile_layer[row][col] = TileType.SINKING
@@ -415,9 +411,7 @@ class Map:
         self.tile_layer[row][col] = TileType.SUNKEN
 
     def update(self, dt: float) -> None:
-        for a in self.tile_animations:
-            a.update(dt)
-        self.tile_animations = [a for a in self.tile_animations if not a.stage == AnimationStage.FINISHED]
+        pass
 
     # --- Render ---
 
@@ -440,83 +434,12 @@ class Map:
                         texture.set_alpha(self.visual_data_layer[col][row].get_alpha())
                         surface.blit(texture, (pos_x, pos_y + y_offset), TILE_FRAMES[tile_value][frame_id])
                         #texture.set_alpha(old_alpha)
+                        rect = pygame.Rect(pos_x, pos_y + y_offset, 5, 5)
+                        c = 1 - self.sink_layer[col][row]/len(self.sink_list)
+                        pygame.draw.rect(surface, (c*255,c*255,c*255), rect)
+                        
                 else:
                     rect = pygame.Rect(pos_x, pos_y + y_offset, self.tile_size, self.tile_size)
                     pygame.draw.rect(surface, color, rect)
                     pygame.draw.rect(surface, (0, 0, 0), rect, width=1)
 
-SHAKING_DURATION = 0.7
-SHAKE_HEIGHT = 10
-SHAKE_LOOPS = 3
-SHAKE_PERIOD = 1/SHAKE_LOOPS
-
-SINKING_DURATION = 0.8
-SINK_DISTANCE = settings.TILE_SIZE * 2
-
-class AnimationStage(IntEnum):
-    STILL = 0
-    SHAKING = 1
-    SINKING = 2
-    FINISHED = 3
-
-class TileAnimation():
-    def __init__(
-        self,
-        col: int,
-        row: int,
-        tile_type: TileType,
-        frame: int,
-        map_ref: Map
-    ):
-        self.map_ref = map_ref
-        self.col = col
-        self.row = row
-        self.alpha_rate = 1
-        self.rate = 0
-        self.texture = TILE_TEXTURES[tile_type].subsurface(
-            TILE_FRAMES[tile_type][frame]
-        ).copy()
-        self.stage = AnimationStage.STILL
-        
-        self.start_animation()
-    
-    def start_animation(self) -> None:
-        self.map_ref.visual_data_layer[self.col][self.row].texture = self.texture
-        self.shake_animation()
-    
-    def shake_animation(self) -> None:
-        self.stage = AnimationStage.SHAKING
-        Timer.tween(
-            SHAKING_DURATION,
-            [(self,{"rate": 1})],
-            ease_function_name="out_cubic",
-            on_finish=self.sink_animation
-        )
-    
-    def sink_animation(self) -> None:
-        self.stage = AnimationStage.SINKING
-        self.rate = 0
-        Timer.tween(
-            SHAKING_DURATION,
-            [(self,{"rate": 1,"alpha_rate": 0})],
-            ease_function_name="out_cubic",
-            on_finish=self.finish
-        )
-        
-    def finish(self) -> None:
-        self.map_ref.tile_layer[self.row][self.col] = TileType.SUNKEN
-        self.map_ref.visual_data_layer[self.col][self.row].frame = -1
-        self.map_ref.visual_data_layer[self.col][self.row].y_offset = 0
-        self.map_ref.visual_data_layer[self.col][self.row].texture = None
-        self.stage = AnimationStage.FINISHED
-        
-    def update(self, dt: float) -> None:
-        v_d = self.map_ref.visual_data_layer[self.col][self.row]
-        if self.stage == AnimationStage.SHAKING:
-            loop = self.rate//SHAKE_PERIOD #which loop are we in
-            loop_progress = self.rate*SHAKE_LOOPS - loop #value from 0 to 1 indicating the animation loop progress
-            shift_rate = 1 - abs(1 - loop_progress * 2) #goes from 0 to 1 to 0
-            v_d.y_offset = shift_rate*SHAKE_HEIGHT
-        elif self.stage == AnimationStage.SINKING:
-            v_d.y_offset = self.rate * SINK_DISTANCE
-            self.texture.set_alpha(max(0,min(255*self.alpha_rate,255)))
