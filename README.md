@@ -264,7 +264,7 @@ Estado actual del proyecto: **prototipo jugable**.
 ## Créditos
 
 > ⚠️ Placeholder — agregar nombres/roles del equipo (diseño, programación, arte, etc.)
-
+> gamecontrollerdb.txt from mdquinc's repository [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB), a community mantained database of game controller mappings you can use with SDL!  
 ## Licencia
 
 > ⚠️ Placeholder — definir licencia (ej. MIT, GPL-3.0) o marcar como "TBD".
