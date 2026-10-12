@@ -504,7 +504,7 @@ class ParkourState(BaseState):
     def _end_round(self) -> None:
         # Recorremos todas las personapas para desactivar la papa caliente
         for p in self.personapas:
-            p.is_hot_potato = False
+            p.reset()
 
         self.state_machine.change(
             "score",
