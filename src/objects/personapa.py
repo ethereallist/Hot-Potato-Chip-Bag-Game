@@ -113,14 +113,27 @@ class Personapa:
         self.is_dashing: bool = False
         self.dash_time_left: float = 0.0
         self.cooldown_time_left: float = 0.0
-        self.dash_direction = pygame.Vector2(1, 0)
-        self.facing_direction = pygame.Vector2(1, 0)
+        self.dash_direction = pygame.Vector2(0, 1)
+        self.facing_direction = pygame.Vector2(0, 1)
         self._main_action_was_pressed: bool = False
 
         self.dash_trail = DashTrail()
 
     def get_rect(self) -> pygame.Rect:
         return pygame.Rect(self.position.x, self.position.y, self.size, self.size)
+
+    def reset(self):
+        self.is_hot_potato: bool = False
+        self.is_alive: bool = True
+        self.dash_trail = DashTrail()
+        self.move_intent = pygame.Vector2(0, 0)
+        self.main_action_intent: bool = False  # dash
+        self.secondary_action_intent: bool = False
+        self.is_dashing: bool = False
+        self.dash_time_left: float = 0.0
+        self.cooldown_time_left: float = 0.0
+        self.dash_direction = pygame.Vector2(0, 1)
+        self.facing_direction = pygame.Vector2(0, 1)
 
     def move(self, dt: float) -> None:
         if self.move_intent.length_squared() > 0:
