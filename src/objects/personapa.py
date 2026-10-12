@@ -98,6 +98,7 @@ class Personapa:
 
         # Intents filled in by PlayerController through the Commands
         self.move_intent = pygame.Vector2(0, 0)
+        self.move_vec = pygame.Vector2(0, 0)
         self.main_action_intent: bool = False  # dash
         self.secondary_action_intent: bool = False
 
@@ -107,7 +108,7 @@ class Personapa:
         self.size: int = 40  # width/height of the box, while there's no sprite
 
         # --- Dash ---
-        self.dash_speed: float = 600
+        self.dash_speed: float = 1600
         self.dash_duration: float = 0.15
         self.dash_cooldown: float = 0.6
         self.is_dashing: bool = False
@@ -136,6 +137,10 @@ class Personapa:
         self.facing_direction = pygame.Vector2(0, 1)
 
     def move(self, dt: float) -> None:
+        self.process_move_intent(dt)
+        self.position += self.move_vec
+
+    def process_move_intent(self, dt: float) -> None:
         if self.move_intent.length_squared() > 0:
             self.facing_direction = self.move_intent.normalize()
 
@@ -153,7 +158,7 @@ class Personapa:
         self._secondary_action_was_pressed = secondary_now
 
         if self.is_dashing:
-            self.position += self.dash_direction * self.dash_speed * dt
+            self.move_vec = self.dash_direction * self.dash_speed * dt
             self.dash_time_left -= dt
             if self.dash_time_left <= 0:
                 self.is_dashing = False
@@ -163,7 +168,7 @@ class Personapa:
             direction = self.move_intent
             if direction.length_squared() > 0:
                 direction = direction.normalize()
-            self.position += direction * self.max_speed * dt
+            self.move_vec = direction * self.max_speed * dt
 
         self.dash_trail.update(dt)  # keep fading even after the dash ends
 

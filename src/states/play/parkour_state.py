@@ -315,7 +315,12 @@ class ParkourState(BaseState):
         for i, personapa in enumerate(self.personapas):
             self._personapa_anim_time[i] += dt
             if personapa.is_alive:
-                personapa.move(dt)
+                personapa.process_move_intent(dt)
+                
+                times = 1 + int(personapa.move_vec.length()*2 // settings.TILE_SIZE)
+                for i in range(times):
+                    personapa.position += personapa.move_vec/times
+                    self._check_personapa_wall_collision(personapa)
 
         self._check_tile_effects(dt)
         self._check_player_collisions()
@@ -343,70 +348,71 @@ class ParkourState(BaseState):
            
             self.mapa.register_sink(*personapa.get_rect().center)
             
-            x, y = personapa.position
-            leftoverlap, rightoverlap, upoverlap, downoverlap = 0, 0, 0, 0
+    def _check_personapa_wall_collision(self, personapa: Personapa):
+        x, y = personapa.position
+        leftoverlap, rightoverlap, upoverlap, downoverlap = 0, 0, 0, 0
+        
+        indexes = self.mapa.pos_to_index(x, y) #top-left
+        if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+            clip = personapa.get_rect().clip(
+                self.mapa.get_rect_by_index(*indexes)
+            )
+            leftoverlap = max(leftoverlap, clip.width)
+            upoverlap = max(upoverlap, clip.height)
             
-            indexes = self.mapa.pos_to_index(x, y) #top-left
-            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
-                clip = personapa.get_rect().clip(
-                    self.mapa.get_rect_by_index(*indexes)
-                )
-                leftoverlap = max(leftoverlap, clip.width)
-                upoverlap = max(upoverlap, clip.height)
-                
-            indexes = self.mapa.pos_to_index(x + personapa.size, y) #top-right
-            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
-                clip = personapa.get_rect().clip(
-                    self.mapa.get_rect_by_index(*indexes)
-                )
-                rightoverlap = max(rightoverlap, clip.width)
-                upoverlap = max(upoverlap, clip.height)
-                
-            indexes = self.mapa.pos_to_index(x, y + personapa.size) #bottom-left
-            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
-                clip = personapa.get_rect().clip(
-                    self.mapa.get_rect_by_index(*indexes)
-                )
-                leftoverlap = max(leftoverlap, clip.width)
-                downoverlap = max(downoverlap, clip.height)
-                
-            indexes = self.mapa.pos_to_index(x + personapa.size, y + personapa.size) #bottom-right
-            if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
-                clip = personapa.get_rect().clip(
-                    self.mapa.get_rect_by_index(*indexes)
-                )
-                rightoverlap = max(rightoverlap, clip.width)
-                downoverlap = max(downoverlap, clip.height)
-               
-            h_overlap = leftoverlap + rightoverlap
-            v_overlap = upoverlap + downoverlap
+        indexes = self.mapa.pos_to_index(x + personapa.size, y) #top-right
+        if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+            clip = personapa.get_rect().clip(
+                self.mapa.get_rect_by_index(*indexes)
+            )
+            rightoverlap = max(rightoverlap, clip.width)
+            upoverlap = max(upoverlap, clip.height)
             
-            if h_overlap == 0:
-                continue
+        indexes = self.mapa.pos_to_index(x, y + personapa.size) #bottom-left
+        if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+            clip = personapa.get_rect().clip(
+                self.mapa.get_rect_by_index(*indexes)
+            )
+            leftoverlap = max(leftoverlap, clip.width)
+            downoverlap = max(downoverlap, clip.height)
             
-            full_side_overlap = False
-            
-            if h_overlap == personapa.size:
-                if upoverlap * downoverlap == 0:
-                    personapa.position.y += upoverlap if upoverlap > 0 else -downoverlap
-                else:
-                    personapa.position.y += upoverlap if upoverlap < downoverlap else -downoverlap
-                full_side_overlap = True
-            
-            if v_overlap == personapa.size:
-                if leftoverlap * rightoverlap == 0:
-                    personapa.position.x += leftoverlap if leftoverlap > 0 else -rightoverlap
-                else:
-                    personapa.position.x += leftoverlap if leftoverlap < rightoverlap else -rightoverlap
-                full_side_overlap = True
-            
-            if full_side_overlap:
-                continue
-            
-            if h_overlap < v_overlap:
-                personapa.position.x +=  leftoverlap if leftoverlap > 0 else -rightoverlap
+        indexes = self.mapa.pos_to_index(x + personapa.size, y + personapa.size) #bottom-right
+        if self.mapa.get_tile_by_index(*indexes) == TileType.WALL:
+            clip = personapa.get_rect().clip(
+                self.mapa.get_rect_by_index(*indexes)
+            )
+            rightoverlap = max(rightoverlap, clip.width)
+            downoverlap = max(downoverlap, clip.height)
+           
+        h_overlap = leftoverlap + rightoverlap
+        v_overlap = upoverlap + downoverlap
+        
+        if h_overlap == 0:
+            return
+        
+        full_side_overlap = False
+        
+        if h_overlap == personapa.size:
+            if upoverlap * downoverlap == 0:
+                personapa.position.y += upoverlap if upoverlap > 0 else -downoverlap
             else:
-                personapa.position.y +=  upoverlap if upoverlap > 0 else -downoverlap
+                personapa.position.y += upoverlap if upoverlap < downoverlap else -downoverlap
+            full_side_overlap = True
+        
+        if v_overlap == personapa.size:
+            if leftoverlap * rightoverlap == 0:
+                personapa.position.x += leftoverlap if leftoverlap > 0 else -rightoverlap
+            else:
+                personapa.position.x += leftoverlap if leftoverlap < rightoverlap else -rightoverlap
+            full_side_overlap = True
+        
+        if full_side_overlap:
+            return
+        
+        if h_overlap < v_overlap:
+            personapa.position.x +=  leftoverlap if leftoverlap > 0 else -rightoverlap
+        else:
+            personapa.position.y +=  upoverlap if upoverlap > 0 else -downoverlap
                 
     def reallow_passing(self):
         self.pass_allowed = True
