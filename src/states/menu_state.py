@@ -56,7 +56,7 @@ class MenuState(BaseState):
         # Cargar efectos de sonido de hover y click
         self.hover_sound = pygame.mixer.Sound(settings.SOUNDS["hover"])
         self.hover_sound.set_volume(0.1)
-        
+
         self.click_sound = pygame.mixer.Sound(settings.SOUNDS["click"])
         self.click_sound.set_volume(0.1)
 
@@ -111,6 +111,11 @@ class MenuState(BaseState):
             "assets/sprites/personapa_walk_up.png",
             frame_width=32, frame_height=32, frame_count=4, fps=8,
         )
+
+        self.scream = SpriteAnimation(
+            "assets/sprites/personapa_screaming.png",
+            frame_width=32, frame_height=32, frame_count=18, columns=6, fps=12,
+)
 
     def _load_font(self, font_path: str, size: int) -> pygame.font.Font:
         if font_path:
