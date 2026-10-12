@@ -108,7 +108,7 @@ class Personapa:
         self.size: int = 40  # width/height of the box, while there's no sprite
 
         # --- Dash ---
-        self.dash_speed: float = 1600
+        self.dash_speed: float = 600
         self.dash_duration: float = 0.15
         self.dash_cooldown: float = 0.6
         self.is_dashing: bool = False
