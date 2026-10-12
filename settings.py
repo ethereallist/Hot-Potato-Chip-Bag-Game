@@ -67,6 +67,31 @@ if _gamecontrollerdb_path.exists():
 pygame.init()
 InputHandler.init_gamepads()
 
+
+# --- Jugador 1: Gamepad ---
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p1_left", 0)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p1_right", 0)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p1_up", 0)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p1_down", 0)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p1_main", 0)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p1_secondary", 0)
+
+# --- Jugador 2: Gamepad ---
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p2_left", 1)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p2_right", 1)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p2_up", 1)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p2_down", 1)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p2_main", 1)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p2_secondary", 1)
+
+# --- Jugador 2: Gamepad ---
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p3_left", 2)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p3_right", 2)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p3_up", 2)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p3_down", 2)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p3_main", 2)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p3_secondary", 2)
+
 # --- Jugador 1: teclado (WASD + E dash + Q secundaria) ---
 InputHandler.set_keyboard_action(pygame.K_a, "p1_left")
 InputHandler.set_keyboard_action(pygame.K_d, "p1_right")
