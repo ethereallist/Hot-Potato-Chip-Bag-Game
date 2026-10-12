@@ -24,6 +24,12 @@ class PersonapaSpriteRenderer:
             "assets/sprites/personapa_walk_up.png",
             frame_width=32, frame_height=32, frame_count=4, fps=8,
         )
+        self.scream_animation = SpriteAnimation(
+        "assets/sprites/personapa_screaming.png",
+        frame_width=32, frame_height=32, frame_count=18, columns=6, fps=24,
+        )
+
+        self.scream_total_time = 18 / 24
 
     def _get_hat_direction_index(self, move_intent: pygame.Vector2) -> tuple:
         """Determina qué índice de dirección del sombrero usar.
@@ -71,15 +77,22 @@ class PersonapaSpriteRenderer:
 
         move_intent = personapa.move_intent
 
-        # 1. Obtener el frame correcto de la animación
-        if abs(move_intent.x) > abs(move_intent.y) and abs(move_intent.x) > 0.1:
-            flipped = move_intent.x < 0
-            frame = self.walk_right_animation.get_frame(anim_time, flipped=flipped)
-        elif move_intent.y < -0.1 and abs(move_intent.y) >= abs(move_intent.x):
-            frame = self.walk_up_animation.get_frame(anim_time)
+        if personapa.is_screaming:
+            t = min(personapa.scream_time, self.scream_total_time - 0.001)
+            frame = self.scream_animation.get_frame(
+                t,
+                flipped=personapa.facing_direction.x < 0,
+        )
         else:
-            flipped = personapa.facing_direction.x < 0
-            frame = self.idle_animation.get_frame(anim_time, flipped=flipped)
+            # 1. Obtener el frame correcto de la animación
+            if abs(move_intent.x) > abs(move_intent.y) and abs(move_intent.x) > 0.1:
+                flipped = move_intent.x < 0
+                frame = self.walk_right_animation.get_frame(anim_time, flipped=flipped)
+            elif move_intent.y < -0.1 and abs(move_intent.y) >= abs(move_intent.x):
+                frame = self.walk_up_animation.get_frame(anim_time)
+            else:
+                flipped = personapa.facing_direction.x < 0
+                frame = self.idle_animation.get_frame(anim_time, flipped=flipped)
 
         # 2. Copiar el frame para poder teñirlo
         frame_surface = frame.copy()

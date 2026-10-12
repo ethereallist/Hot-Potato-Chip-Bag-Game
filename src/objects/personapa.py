@@ -89,6 +89,10 @@ class Personapa:
         # Grito (acción secundaria): lo asigna ParkourState al empezar la partida
         self.scream_sound = None  # pygame.mixer.Sound
         self._secondary_action_was_pressed: bool = False
+        self.is_screaming = False
+        self.scream_duration = 1.5
+        self.scream_time = 0.75
+        self._secondary_was_pressed = False
 
         # Sombrero del personaje
         self.hat_index: int = -1  # -1 significa sin sombrero
@@ -147,10 +151,15 @@ class Personapa:
             self.dash()
         self._main_action_was_pressed = pressed_now
 
-        secondary_now = self.secondary_action_intent
-        if secondary_now and not self._secondary_action_was_pressed:
+        pressed_secondary = self.secondary_action_intent
+        if pressed_secondary and not self._secondary_was_pressed:
             self.scream()
-        self._secondary_action_was_pressed = secondary_now
+        self._secondary_was_pressed = pressed_secondary
+
+        if self.is_screaming:
+            self.scream_time += dt
+            if self.scream_time >= self.scream_duration:
+                self.is_screaming = False
 
         if self.is_dashing:
             self.position += self.dash_direction * self.dash_speed * dt
@@ -168,10 +177,14 @@ class Personapa:
         self.dash_trail.update(dt)  # keep fading even after the dash ends
 
     def scream(self) -> None:
-        if self.scream_sound is None:
+        if self.is_screaming:
             return
-        self.scream_sound.stop()
-        self.scream_sound.play()
+
+        self.is_screaming = True
+        self.scream_time = 0.0
+
+        if self.scream_sound is not None:
+            self.scream_sound.play()
 
     def dash(self) -> None:
         if self.is_dashing or self.cooldown_time_left > 0:
