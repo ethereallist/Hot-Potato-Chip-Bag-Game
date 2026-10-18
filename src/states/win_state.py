@@ -114,8 +114,8 @@ class WinState(BaseState):
         self.leaving = False          # ya se eligió una opción, ignorar inputs
         self.pending_action = None    # "play" | "menu"
 
-        # Tamaños de fuente pensados para una ventana de 700x500 (ver
-        # settings.WINDOW_WIDTH/HEIGHT). El título original a 96pt medía
+        # Tamaños de fuente pensados para una Surface de de 700x500 (ver
+        # settings.VIRTUAL_WIDTH/HEIGHT). El título original a 96pt medía
         # 828px de ancho -- más ancho que toda la pantalla -- por eso no
         # se veía: se salía por ambos lados. Con 44pt entra completo.
         self.font_title = self._load_font(44)
@@ -144,7 +144,7 @@ class WinState(BaseState):
 
         # Confeti cayendo desde arriba
         self.confetti = ConfettiRain(
-            settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT, rate=CONFETTI_RATE
+            settings.VIRTUAL_WIDTH, settings.VIRTUAL_HEIGHT, rate=CONFETTI_RATE
         )
         self.confetti.prefill(CONFETTI_PREFILL, CONFETTI_PREFILL_DEPTH)
 

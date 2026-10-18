@@ -60,8 +60,8 @@ class MenuState(BaseState):
         self.click_sound = pygame.mixer.Sound(settings.SOUNDS["click"])
         self.click_sound.set_volume(0.1)
 
-        self.width = getattr(settings, "WINDOW_WIDTH", 800)
-        self.height = getattr(settings, "WINDOW_HEIGHT", 600)
+        self.width = getattr(settings, "VIRTUAL_WIDTH", 800)
+        self.height = getattr(settings, "VIRTUAL_HEIGHT", 600)
 
         self.stripes_surface = self._generate_diagonal_stripes()
 
