@@ -17,7 +17,7 @@ from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
 from src.utilities.player_input_manager import PlayerTracker
 
-_POTATO_PASS_DOWNTIME = 0.4
+_POTATO_PASS_DOWNTIME = 1.0
 
 # Jugadores 1 y 2: teclado, vía Gale (funciona bien por eventos)
 KEYBOARD_PLAYER_CONFIGS = []
