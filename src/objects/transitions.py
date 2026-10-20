@@ -39,7 +39,7 @@ class FadeInOut(TransitionBase):
         self.fade_out = kwargs.get("fade_out", True)
 
     def render(self, surface: pygame.Surface) -> None:
-        temp_surface = pygame.Surface((settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT))
+        temp_surface = pygame.Surface((settings.VIRTUAL_WIDTH, settings.VIRTUAL_HEIGHT))
         temp_surface.fill(self.color)
         alpha = 0
         if self.fade_out:
