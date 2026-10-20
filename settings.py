@@ -24,9 +24,15 @@ from gale.input_handler import (
     GAMEPAD_BUTTON_DPAD_RIGHT,
 )
 
+
+
 # TODO: resolución de ventana / resolución virtual
-WINDOW_WIDTH = 700
-WINDOW_HEIGHT = 500
+VIRTUAL_WIDTH = 672
+VIRTUAL_HEIGHT = 480
+
+WINDOW_WIDTH = VIRTUAL_WIDTH * 1
+WINDOW_HEIGHT = VIRTUAL_HEIGHT * 1
+
 # usado por src/states/map/map.py
 TILE_SIZE = 48
 
@@ -123,9 +129,3 @@ InputHandler.set_keyboard_action(pygame.K_t, "p4_up")
 InputHandler.set_keyboard_action(pygame.K_g, "p4_down")
 InputHandler.set_keyboard_action(pygame.K_y, "p4_main")
 InputHandler.set_keyboard_action(pygame.K_r, "p4_secondary")
-
-# TODO: resolución de ventana / resolución virtual
-WINDOW_WIDTH = 700
-WINDOW_HEIGHT = 500
-# usado por src/states/map/map.py
-TILE_SIZE = 50

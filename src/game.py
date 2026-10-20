@@ -17,6 +17,7 @@ from src.states.win_state import WinState
 
 class HotPotatoChipBagGame(Game):
     def init(self) -> None:
+        pygame.display.set_mode((self.virtual_width, self.virtual_height,), pygame.FULLSCREEN | pygame.SCALED)
         self.state_machine = StateMachine(
             {
                 "menu": MenuState,
