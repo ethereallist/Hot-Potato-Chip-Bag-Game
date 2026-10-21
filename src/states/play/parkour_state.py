@@ -125,6 +125,7 @@ class ParkourState(BaseState):
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
+            controller.gamepad_id = i
 
             self.personapas.append(personapa)
             self.controllers.append(controller)
