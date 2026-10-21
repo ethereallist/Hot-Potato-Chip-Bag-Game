@@ -36,6 +36,7 @@ ROUND_DURATION = 20.0
 SINK_START_DELAY = 6.0
 SINK_INTERVAL = 2.0
 PERSONAPA_VISUAL_SCALE = 1.5  # tamaño del sprite al dibujarlo
+FEET_OFFSET_Y = 24   # px por debajo del centro de la caja de la Personapa
 
 EXPLOSION_SHAKE_DURATION = 0.5    # segundos que tiembla la pantalla
 EXPLOSION_SHAKE_MAGNITUDE = 26    # qué tan fuerte tiembla, en píxeles
@@ -337,8 +338,10 @@ class ParkourState(BaseState):
             personapa = self.personapas[i]
             if not personapa.is_alive:
                 continue
+
+            feet = self._feet_position(personapa)
             
-            if not self.mapa.is_solid_ground_by_pos(*personapa.get_rect().center):
+            if not self.mapa.is_solid_ground_by_pos(*feet):
                 if not personapa.is_dashing:
                     personapa.is_alive = False
                     self.death_log[i] = False
@@ -346,7 +349,7 @@ class ParkourState(BaseState):
                         self.assign_hot_potato_randomly()
                     continue
            
-            self.mapa.register_sink(*personapa.get_rect().center)
+            self.mapa.register_sink(*feet)
             
     def _check_personapa_wall_collision(self, personapa: Personapa):
         x, y = personapa.position
@@ -580,3 +583,7 @@ class ParkourState(BaseState):
             max_radius = math.hypot(surface.get_width(), surface.get_height())
             radius = int(self.blackout_progress * max_radius)
             pygame.draw.circle(surface, "black", self.blackout_center, radius)
+
+    def _feet_position(self, personapa) -> tuple:
+        center = personapa.get_rect().center
+        return (center[0], center[1] + FEET_OFFSET_Y)

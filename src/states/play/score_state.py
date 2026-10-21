@@ -7,6 +7,11 @@ from src.objects.podio import Podio
 from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.objects.transitions import FadeInOut
 
+import settings
+
+VIRTUAL_W = getattr(settings, "VIRTUAL_WIDTH", None) or settings.WINDOW_WIDTH
+VIRTUAL_H = getattr(settings, "VIRTUAL_HEIGHT", None) or settings.WINDOW_HEIGHT
+
 class ScoreState(BaseState):
     def enter(self, **kwargs) -> None:
         self.play_state = kwargs["play_state"]
@@ -20,7 +25,7 @@ class ScoreState(BaseState):
 
         # 1. Configurar podios
         self.podios = []
-        screen_w, screen_h = pygame.display.get_surface().get_size()
+        screen_w, screen_h = VIRTUAL_W, VIRTUAL_H
         ancho_podio = 80
         espacio = 60
         total_w = (ancho_podio * len(self.personapas)) + (espacio * (len(self.personapas) - 1))
