@@ -98,7 +98,7 @@ class Personapa:
         self.hat_index: int = -1  # -1 significa sin sombrero
         self.hat_sprites = None  # instancia compartida de HatSprites
         self.position = pygame.Vector2(0, 0)
-        self.max_speed: float = 200  # px/second
+        self.max_speed: float = 500  # px/second
 
         # Intents filled in by PlayerController through the Commands
         self.move_intent = pygame.Vector2(0, 0)
@@ -112,7 +112,7 @@ class Personapa:
         self.size: int = 40  # width/height of the box, while there's no sprite
 
         # --- Dash ---
-        self.dash_speed: float = 600
+        self.dash_speed: float = 900
         self.dash_duration: float = 0.15
         self.dash_cooldown: float = 0.6
         self.is_dashing: bool = False
