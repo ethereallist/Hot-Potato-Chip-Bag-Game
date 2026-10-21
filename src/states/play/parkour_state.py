@@ -200,6 +200,8 @@ class ParkourState(BaseState):
             jugador_elegido = random.choice(self.personapas)
             jugador_elegido.is_hot_potato = True
 
+        self._background = settings.TEXTURES["background_bag"]
+
     def assign_hot_potato_randomly(self) -> None:
         """Le quita la papa a todos y se la asigna a alguien al azar
         entre los que siguen VIVOS (para no dársela a quien ya cayó en
@@ -528,7 +530,7 @@ class ParkourState(BaseState):
             self._render_explosion_effect(surface)
             return
 
-        surface.fill("black")
+        surface.blit(self._background, (0, 0))
         self.mapa.render(surface)
 
         for i, personapa in enumerate(self.personapas):
@@ -558,7 +560,7 @@ class ParkourState(BaseState):
         # superficie aparte, para poder aplicarle el temblor de pantalla
         # sin tocar el resto del código de dibujo
         temp = pygame.Surface(surface.get_size())
-        temp.fill("black")
+        temp.blit(self._background, (0, 0))
         self.mapa.render(temp)
 
         for i, personapa in enumerate(self.personapas):

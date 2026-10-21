@@ -43,6 +43,7 @@ SHAPES = {
 TEXTURES = {
     "floor_tiles" : pygame.image.load(BASE_DIR / "assets" / "images" / "floor_tiles.png"),
     "wall_tiles" : pygame.image.load(BASE_DIR / "assets" / "images" / "wall_tiles.png"),
+    "background_bag" : pygame.image.load(BASE_DIR / "assets" / "images" / "bag_background.png"),
 }
 
 FRAMES = {
