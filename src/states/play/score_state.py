@@ -1,4 +1,6 @@
 """ScoreState: estado de puntuación después de una ronda."""
+import math
+
 import pygame
 from gale.state import BaseState
 from gale.timer import Timer
@@ -11,6 +13,16 @@ import settings
 
 VIRTUAL_W = getattr(settings, "VIRTUAL_WIDTH", None) or settings.WINDOW_WIDTH
 VIRTUAL_H = getattr(settings, "VIRTUAL_HEIGHT", None) or settings.WINDOW_HEIGHT
+
+# Botones al final de la pantalla (mismo estilo que MenuState/WinState)
+OUTLINE_COLOR = (20, 20, 30)
+BUTTON_FILL_IDLE = (255, 255, 255)
+BUTTON_FILL_SELECTED = (255, 221, 0)
+BUTTON_TEXT_IDLE = (44, 108, 191)
+BUTTON_TEXT_SELECTED = (20, 20, 30)
+BUTTON_W, BUTTON_H, BUTTON_GAP = 250, 46, 20
+BUTTON_CENTER_Y = VIRTUAL_H - 38
+INPUT_UNLOCK_DELAY = 1.8  # segundos antes de aceptar input (evita saltarse la pantalla sin querer)
 
 class ScoreState(BaseState):
     def enter(self, **kwargs) -> None:
@@ -32,6 +44,7 @@ class ScoreState(BaseState):
         start_x = (screen_w - total_w) // 2
 
         colores = [(245, 60, 60), (100, 255, 100), (60, 150, 255), (255, 175, 55)]
+        self.colores = colores
 
         for i in range(len(self.personapas)):
             puntos = self.play_state.scores[i]
@@ -58,8 +71,10 @@ class ScoreState(BaseState):
         # 4. Fuentes estilo UI
         try:
             self.font = pygame.font.Font("assets/fonts/Hansief.otf", 40)
+            self.sub_font = pygame.font.Font("assets/fonts/Hansief.otf", 28)
         except:
             self.font = pygame.font.SysFont(None, 40)
+            self.sub_font = pygame.font.SysFont(None, 28)
 
         # Fondo de franjas diagonales, igual estilo que MenuState. Se genera
         # en el primer render() usando el tamaño REAL de la superficie que
@@ -71,8 +86,27 @@ class ScoreState(BaseState):
         self.transition = None
         self.is_transitioning = False
 
-        # Esperar 3.5 segundos mostrando resultados y luego iniciar transición
-        Timer.after(3.5, self._start_transition)
+        # La pantalla se queda hasta que un jugador elija un botón.
+        # Opción 0 (izquierda): volver al menú principal
+        # Opción 1 (derecha): siguiente ronda (o ver ganador si ya terminaron las rondas)
+        self.selected_index = 1  # por defecto queda seleccionado "siguiente ronda"
+        self.pending_action = None
+        self.options = [
+            "MENÚ PRINCIPAL",
+            "VER GANADOR" if self.play_state.are_rounds_over() else "SIGUIENTE RONDA",
+        ]
+        self.button_labels = {}
+        for i, text in enumerate(self.options):
+            self.button_labels[(i, False)] = self.sub_font.render(text, True, BUTTON_TEXT_IDLE)
+            self.button_labels[(i, True)] = self.sub_font.render(text, True, BUTTON_TEXT_SELECTED)
+
+        try:
+            self.hover_sound = pygame.mixer.Sound(settings.SOUNDS["hover"])
+            self.hover_sound.set_volume(0.1)
+            self.click_sound = pygame.mixer.Sound(settings.SOUNDS["click"])
+            self.click_sound.set_volume(0.1)
+        except Exception:
+            self.hover_sound = self.click_sound = None
 
     def tween_podio_heights(self, repeat: bool):
         altura = 40
@@ -91,6 +125,29 @@ class ScoreState(BaseState):
             ease_function_name="out_cubic",
             on_finish= o_f,
         )
+
+    @property
+    def inputs_enabled(self) -> bool:
+        return (not self.is_transitioning) and self.anim_time >= INPUT_UNLOCK_DELAY
+
+    def on_input(self, input_id, input_data) -> None:
+        if not getattr(input_data, "pressed", False) or not self.inputs_enabled:
+            return
+
+        # Cualquier jugador puede navegar y confirmar (igual que en WinState)
+        if input_id.endswith(("_up", "_left")):
+            self.selected_index = (self.selected_index - 1) % len(self.options)
+            if self.hover_sound:
+                self.hover_sound.play()
+        elif input_id.endswith(("_down", "_right")):
+            self.selected_index = (self.selected_index + 1) % len(self.options)
+            if self.hover_sound:
+                self.hover_sound.play()
+        elif input_id.endswith("_main"):
+            if self.click_sound:
+                self.click_sound.play()
+            self.pending_action = "menu" if self.selected_index == 0 else "next"
+            self._start_transition()
 
     def _start_transition(self):
         self.is_transitioning = True
@@ -123,7 +180,66 @@ class ScoreState(BaseState):
 
         return surface
 
+    def _get_leader(self):
+        """Devuelve (texto, color) del jugador que va ganando.
+        Si hay empate en el primer lugar, devuelve 'Empate' en blanco."""
+        scores = self.play_state.scores[:len(self.personapas)]
+        best = max(scores)
+        leaders = [i for i, p in enumerate(scores) if p == best]
+        if len(leaders) == 1:
+            i = leaders[0]
+            return f"Jugador {i + 1}", self.colores[i % len(self.colores)]
+        return "Empate", (245, 245, 245)
+
+    def _render_buttons(self, surface: pygame.Surface) -> None:
+        total_w = BUTTON_W * len(self.options) + BUTTON_GAP * (len(self.options) - 1)
+        start_x = (VIRTUAL_W - total_w) // 2
+
+        for i in range(len(self.options)):
+            is_selected = i == self.selected_index
+            bounce = math.sin(self.anim_time * 6) * 3 if is_selected else 0
+
+            rect = pygame.Rect(0, 0, BUTTON_W, BUTTON_H)
+            rect.center = (start_x + BUTTON_W // 2 + i * (BUTTON_W + BUTTON_GAP),
+                           BUTTON_CENTER_Y + bounce)
+
+            shadow = rect.copy()
+            shadow.y += 5
+            pygame.draw.rect(surface, (10, 10, 15), shadow, border_radius=16)
+
+            fill = BUTTON_FILL_SELECTED if is_selected else BUTTON_FILL_IDLE
+            pygame.draw.rect(surface, fill, rect, border_radius=16)
+            pygame.draw.rect(surface, OUTLINE_COLOR, rect, width=4, border_radius=16)
+
+            label = self.button_labels[(i, is_selected)]
+            surface.blit(label, label.get_rect(center=rect.center))
+
+    def _render_header(self, surface: pygame.Surface) -> None:
+        """Textos de arriba, mismo estilo que 'Selecciona tu Sombrero'
+        (Hansief, blanco, centrados) en la parte superior."""
+        cx = VIRTUAL_W // 2
+
+        title = self.font.render("Puntuaciones", True, "white")
+        surface.blit(title, title.get_rect(center=(cx, 40)))
+
+        ronda = f"Ronda {self.play_state.rounds} de {self.play_state.max_rounds}"
+        ronda_surf = self.sub_font.render(ronda, True, "white")
+        surface.blit(ronda_surf, ronda_surf.get_rect(center=(cx, 80)))
+
+        nombre, color = self._get_leader()
+        prefijo = self.sub_font.render("Va ganando: ", True, "white")
+        nombre_surf = self.sub_font.render(nombre, True, color)
+        total_w = prefijo.get_width() + nombre_surf.get_width()
+        x = cx - total_w // 2
+        y = 115
+        surface.blit(prefijo, prefijo.get_rect(midleft=(x, y)))
+        surface.blit(nombre_surf, nombre_surf.get_rect(midleft=(x + prefijo.get_width(), y)))
+
     def _on_transition_finish(self):
+        if self.pending_action == "menu":
+            self.play_state.return_to_menu()
+            return
+
         winner_index = self.play_state.check_winner()
         if winner_index != -1:
             # OJO: self.state_machine NO es la maquina del juego, es la
@@ -178,6 +294,11 @@ class ScoreState(BaseState):
 
             # Restauramos la posición original
             personapa.position = pos_original
+
+        self._render_header(surface)
+
+        if self.anim_time >= INPUT_UNLOCK_DELAY:
+            self._render_buttons(surface)
 
         # Si está transicionando, pintar encima el Fade
         if self.is_transitioning and self.transition:
