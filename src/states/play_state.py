@@ -38,8 +38,8 @@ class PlayState(HierarchicalState):
         
         self.player_count = kwargs.get("player_count", 4) #it should be 2 as minimum
         self.rounds = 0
-        self.max_rounds = 3
-        self.target_score = int(3 + 1.5 * (self.player_count - 2))
+        self.max_rounds = 5
+        self.target_score = 3
         self.scores = [0 for _ in range(self.player_count)]
 
         self.screams = ScreamDeck.deal(self.player_count)
@@ -53,19 +53,16 @@ class PlayState(HierarchicalState):
         return self.rounds >= self.max_rounds
         
     def check_winner(self) -> int:
-        # Solo hay ganador cuando se jugaron TODAS las rondas (self.max_rounds,
-        # que depende de player_count) — antes comparaba contra un 3 fijo,
-        # así que con 4 jugadores (9 rondas) el juego terminaba carrera muy
-        # temprano en vez de esperar a que se acumularan puntos en todas.
+        # gana de inmediato quien alcance el puntaje objetivo
+        for i, score in enumerate(self.scores):
+            if score >= self.target_score:
+                return i
+
+        # si no, gana quien tenga más puntos al acabar las rondas
         if self.are_rounds_over():
-            # Buscamos cuál es el puntaje más alto
-            max_score = max(self.scores)
-            # Devolvemos el índice del jugador que tiene ese puntaje
-            winner_index = self.scores.index(max_score)
-            return winner_index
-        
-        # Si aún no se jugaron todas las rondas, devolvemos -1 (aún no hay ganador)
+            return self.scores.index(max(self.scores))
+
         return -1
-        
+    
     def return_to_menu(self):
         self.state_machine.change("menu")
