@@ -4,6 +4,8 @@ y activa las intenciones correspondientes en su objeto poseído
 
 from gale.input_handler import InputData, apply_deadzone
 from gale.command import Command, CommandBindings
+import settings
+import pygame
 
 class MoveVectorRightCommand(Command):
     def execute(self, receiver, dt: float = 0.0) -> None:
@@ -105,15 +107,20 @@ class PlayerController:
         if self.possessed_entity is None:
             return
 
-        if self.device == "gamepad":
-            if input_data.get_action_name() not in ("gamepad_axis", "gamepad_button"):
-                return  # ignora eventos que no son de mando (teclado, mouse, etc.)
-            if input_data.gamepad_id != self.gamepad_id:
-                return
-
-            if input_id == "axis_x":
-                self.possessed_entity.move_intent.x = apply_deadzone(input_data.value)
-            if input_id == "axis_y":
-                self.possessed_entity.move_intent.y = apply_deadzone(input_data.value)
+        #if self.device == "gamepad":
+            #if input_data.get_action_name() not in ("gamepad_axis", "gamepad_button"):
+                #return  # ignora eventos que no son de mando (teclado, mouse, etc.)
+            #if input_data.gamepad_id != self.gamepad_id:
+                #return
+        if input_id == "axis_x" and input_data.gamepad_id == self.gamepad_id:
+            raw_x = settings.mandos[self.gamepad_id].get_axis(pygame.CONTROLLER_AXIS_LEFTX) / 32767.0
+            input_x = raw_x if abs(raw_x) > settings.DEAD_ZONE_VAL else 0.0
+            self.possessed_entity.move_intent.x = input_x
+            return
+        if input_id == "axis_y" and input_data.gamepad_id == self.gamepad_id:
+            raw_y = settings.mandos[self.gamepad_id].get_axis(pygame.CONTROLLER_AXIS_LEFTY) / 32767.0
+            input_y = raw_y if abs(raw_y) > settings.DEAD_ZONE_VAL else 0.0
+            self.possessed_entity.move_intent.y = input_y
+            return
 
         self.command_bindings.dispatch(self.possessed_entity, input_id, input_data)

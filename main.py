@@ -8,14 +8,22 @@ import os
 import pygame
 import pygame._sdl2.controller as ext_controller  # Explicitly import the SDL2 extension
 import importlib
+import settings
 
 # 1. Intentar cargar el archivo en el entorno
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_path = os.path.join(script_dir, "gamecontrollerdb.txt")
 
+os.environ["SDL_GAMECONTROLLERCONFIG"] = (
+    "030081b85e0400008e02000072050000,Xbox 360 Controller Clone,"
+    "a:b0,b:b1,x:b2,y:b3,back:b6,start:b7,guide:b8,leftshoulder:b4,rightshoulder:b5,"
+    "leftstick:b9,rightstick:b10,leftx:a0,lefty:a1,rightx:a3,righty:a4,"
+    "lefttrigger:a2,righttrigger:a5,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,platform:Linux,"
+)
+
 if os.path.exists(db_path):
     with open(db_path, "r", encoding="utf-8") as f:
-        os.environ["SDL_GAMECONTROLLERCONFIG"] = f.read()
+        os.environ["SDL_GAMECONTROLLERCONFIG_FILE"] = f.read()
     #print("Archivo 'gamecontrollerdb.txt' leído e inyectado en el entorno.")
 else:
     #print("ERROR: El archivo no existe en la ruta especificada.")
@@ -62,6 +70,7 @@ if not mandos_activos:
     #print("\n💡 No se detectó ningún mando físico. Conecta tus gamepads y vuelve a ejecutar el script.")
     pass
 
+settings.mandos = mandos_activos
 
 from src.game import HotPotatoChipBagGame
 
