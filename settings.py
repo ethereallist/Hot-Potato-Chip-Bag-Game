@@ -35,6 +35,8 @@ WINDOW_HEIGHT = VIRTUAL_HEIGHT * 1
 
 # usado por src/states/map/map.py
 TILE_SIZE = 48
+MAP_COLUMNS = 13
+MAP_ROWS = 9
 
 SHAPES = {
     "cursor" : pygame.image.load(BASE_DIR / "assets" / "images" / "cursor_shape.png"),
