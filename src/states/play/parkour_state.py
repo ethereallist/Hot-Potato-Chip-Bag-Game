@@ -12,7 +12,6 @@ import settings
 
 from src.objects.personapa import Personapa
 from src.objects.player_controller import PlayerController
-from src.objects.gamepad_direct import GamepadDirectController
 from src.objects.personapa_sprite_renderer import PersonapaSpriteRenderer
 from src.states.map.map import Map, TileType
 from src.utilities.player_input_manager import PlayerTracker
@@ -37,6 +36,14 @@ SINK_START_DELAY = 6.0
 SINK_INTERVAL = 2.0
 PERSONAPA_VISUAL_SCALE = 1.5  # tamaño del sprite al dibujarlo
 FEET_OFFSET_Y = 24   # px por debajo del centro de la caja de la Personapa
+
+# Vibración del mando de quien tiene la papa: se renueva cada RUMBLE_STEP
+# segundos y va de RUMBLE_MIN a RUMBLE_MAX conforme se acaba la ronda.
+RUMBLE_STEP = 1.0
+RUMBLE_MIN = 0.25
+RUMBLE_MAX = 1.0
+RUMBLE_EXPLOSION_STRENGTH = 1.0
+RUMBLE_EXPLOSION_MS = 600
 
 EXPLOSION_SHAKE_DURATION = 0.5    # segundos que tiembla la pantalla
 EXPLOSION_SHAKE_MAGNITUDE = 26    # qué tan fuerte tiembla, en píxeles
@@ -107,15 +114,10 @@ class ParkourState(BaseState):
         pygame.mixer.music.play(-1)
 
         self.play_state = kwargs["play_state"]
-        
-        #number of columns and rows that will be in the map        
-        cols_num = max(5, settings.MAP_COLUMNS - int(self.play_state.rounds * 1.3))
-        rows_num = max(5, settings.MAP_ROWS - int(self.play_state.rounds * 1.3))
-        
-        centered_map_x = (settings.VIRTUAL_WIDTH - cols_num * settings.TILE_SIZE)/2
-        centered_map_y = (settings.VIRTUAL_HEIGHT - rows_num * settings.TILE_SIZE)/2
-        self.mapa = Map(x=centered_map_x, y=centered_map_y, columns=cols_num, rows=rows_num)
-        self._construir_arena_de_prueba()
+
+        # Vibración: jugadores (por índice) cuyo mando está vibrando ahora
+        self._rumble_timer = 0.0
+        self._rumbling: set[int] = set()
 
         # Personapas que ya venían caminando en el menú (si las hay) —
         # se REUTILIZAN tal cual, con su posición actual, en vez de
@@ -131,6 +133,7 @@ class ParkourState(BaseState):
                 personapa.move_intent = pygame.Vector2(0, 0)  # limpia el rumbo que traía del menú
             else:
                 personapa = Personapa()
+                personapa.position = pygame.Vector2(START_POSITIONS[i])
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
@@ -155,6 +158,12 @@ class ParkourState(BaseState):
         self._round_ended = False
 
         random.choice(self.personapas).is_hot_potato = True
+
+        self.mapa = Map(x=0, y=0, columns=14, rows=10)
+        self._construir_arena_de_prueba()
+
+        if "mapa" in kwargs:
+            self.mapa = kwargs["mapa"]
             
         # NUEVO: Recalcular las listas de hundimiento basado en lo que
         # construyeron los jugadores, para que hunda solo el suelo (FLOOR).
@@ -201,14 +210,6 @@ class ParkourState(BaseState):
             # 2. Asignar la papa a un jugador AL AZAR
             jugador_elegido = random.choice(self.personapas)
             jugador_elegido.is_hot_potato = True
-        
-        self.set_personapa_positions()
-
-    def set_personapa_positions(self):
-        for i, personapa in enumerate(self.personapas):
-            col_index = 1 if i % 2 == 0 else self.mapa.columns - 2
-            row_index = 1 if i / 2 >= 1 else self.mapa.rows - 2
-            personapa.position = pygame.Vector2(self.mapa.index_to_pos(col_index, row_index))
 
         self._background = settings.TEXTURES["background_bag"]
 
@@ -302,6 +303,7 @@ class ParkourState(BaseState):
         for row in range(self.mapa.rows):
             self.mapa.set_tile_by_index(0, row, TileType.WALL)
             self.mapa.set_tile_by_index(self.mapa.columns - 1, row, TileType.WALL)
+        self.mapa.set_tile_by_index(7, 5, TileType.HOLE)
 
     @property
     def in_countdown(self) -> bool:
@@ -324,6 +326,7 @@ class ParkourState(BaseState):
             return
 
         self.round_time_left -= dt
+        self._update_rumble(dt)
 
         for i, personapa in enumerate(self.personapas):
             self._personapa_anim_time[i] += dt
@@ -331,7 +334,7 @@ class ParkourState(BaseState):
                 personapa.process_move_intent(dt)
                 
                 times = 1 + int(personapa.move_vec.length()*2 // settings.TILE_SIZE)
-                for i in range(times):
+                for _ in range(times):
                     personapa.position += personapa.move_vec/times
                     self._check_personapa_wall_collision(personapa)
 
@@ -342,6 +345,8 @@ class ParkourState(BaseState):
 
         if self.round_time_left <= 0:
             self._explode_hot_potato()  # dispara la secuencia; _end_round() se llama sola al terminar
+            if not self.round_ending:
+                self._end_round()  # nadie vivo tenía la papa: no hay explosión, se cierra la ronda
         elif self._count_alive() <= 1:
             self._end_round()
 
@@ -466,9 +471,14 @@ class ParkourState(BaseState):
             if personapa.is_hot_potato and personapa.is_alive:
                 personapa.is_alive = False
                 self.death_log[i] = False
-                self._start_explosion_effect(personapa.get_rect().center)
+                self._start_explosion_effect(personapa.get_rect().center, exploded_index=i)
 
-    def _start_explosion_effect(self, position: tuple) -> None:
+    def _start_explosion_effect(self, position: tuple, exploded_index: int | None = None) -> None:
+        # corta la vibración continua y da una sacudida final al que explotó
+        self._stop_all_rumble()
+        if exploded_index is not None:
+            self._rumble(exploded_index, RUMBLE_EXPLOSION_STRENGTH, RUMBLE_EXPLOSION_MS)
+
         self.round_ending = True
         self.round_end_timer = 0.0
         self.blackout_center = position
@@ -523,6 +533,8 @@ class ParkourState(BaseState):
         return sum(1 for p in self.personapas if p.is_alive)
 
     def _end_round(self) -> None:
+        self._stop_all_rumble()
+
         # Recorremos todas las personapas para desactivar la papa caliente
         for p in self.personapas:
             p.reset()
@@ -599,3 +611,58 @@ class ParkourState(BaseState):
     def _feet_position(self, personapa) -> tuple:
         center = personapa.get_rect().center
         return (center[0], center[1] + FEET_OFFSET_Y)
+
+    # ------------------------------------------------------------------
+    # Vibración de los mandos
+    #
+    # Usa settings.mandos (los mismos objetos de main.py de los que
+    # PlayerController lee los ejes), indexados igual que gamepad_id, así
+    # que vibra el mando que de verdad controla a cada jugador. No se crean
+    # Joystick nuevos: abrir el mismo dispositivo dos veces rompe los
+    # eventos de pygame (KeyError dentro de pygame.event.get()).
+    # ------------------------------------------------------------------
+
+    def _rumble(self, player_index: int, strength: float, duration_ms: int) -> None:
+        if player_index >= len(settings.mandos):
+            return
+        try:
+            settings.mandos[player_index].rumble(strength * 0.6, strength, duration_ms)
+        except Exception:
+            pass  # sin mando, o un mando que no soporta vibración
+
+    def _stop_rumble(self, player_index: int) -> None:
+        if player_index >= len(settings.mandos):
+            return
+        try:
+            settings.mandos[player_index].stop_rumble()
+        except Exception:
+            pass
+
+    def _stop_all_rumble(self) -> None:
+        for i in list(getattr(self, "_rumbling", ())):
+            self._stop_rumble(i)
+        if hasattr(self, "_rumbling"):
+            self._rumbling.clear()
+
+    def _update_rumble(self, dt: float) -> None:
+        self._rumble_timer -= dt
+        if self._rumble_timer > 0:
+            return
+        self._rumble_timer = RUMBLE_STEP
+
+        progress = 1.0 - max(0.0, self.round_time_left) / ROUND_DURATION
+        strength = RUMBLE_MIN + (RUMBLE_MAX - RUMBLE_MIN) * progress
+
+        for i, p in enumerate(self.personapas):
+            if p.is_alive and p.is_hot_potato:
+                # dura un poco más que el intervalo para que no haya huecos
+                self._rumble(i, strength, int(RUMBLE_STEP * 1000) + 200)
+                self._rumbling.add(i)
+            elif i in self._rumbling:
+                self._stop_rumble(i)
+                self._rumbling.discard(i)
+
+    def exit(self) -> None:
+        # al salir del estado (a la puntuación, al menú...) ningún mando
+        # debe quedarse vibrando
+        self._stop_all_rumble()

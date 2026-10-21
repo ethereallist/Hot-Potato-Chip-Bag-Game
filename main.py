@@ -5,6 +5,14 @@ un main.py mínimo que solo instancia el Game y lo ejecuta.
 """
 
 import os
+
+# El driver HIDAPI de SDL reabre los mandos PlayStation en macOS y les
+# cambia el id. Se desactiva ANTES de que se inicie SDL (settings.py llama
+# a pygame.init() al importarse, así que esto va primero).
+os.environ["SDL_JOYSTICK_HIDAPI_PS4"] = "0"
+os.environ["SDL_JOYSTICK_HIDAPI_PS5"] = "0"
+os.environ["SDL_JOYSTICK_HIDAPI"] = "0"
+
 import pygame
 import pygame._sdl2.controller as ext_controller  # Explicitly import the SDL2 extension
 import importlib
@@ -31,6 +39,22 @@ else:
 
 os.environ["PATH"] = "" 
 pygame.init()
+
+# Red de seguridad: si pygame falla al convertir un evento de un mando que se
+# reconectó con un id desconocido (KeyError), se descarta ese evento y el juego
+# sigue en vez de cerrarse. OJO: no bloquear los eventos JOY* con
+# pygame.event.set_blocked(): SDL genera los eventos CONTROLLER* a partir de
+# ellos, y los mandos dejarían de responder.
+_original_event_get = pygame.event.get
+
+def _safe_event_get(*args, **kwargs):
+    try:
+        return _original_event_get(*args, **kwargs)
+    except (SystemError, KeyError) as e:
+        print("[aviso] evento de mando ignorado:", repr(e.__cause__ or e))
+        return []
+
+pygame.event.get = _safe_event_get
 importlib.reload(os)
 ext_controller.init()
 
