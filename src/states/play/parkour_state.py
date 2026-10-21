@@ -107,6 +107,15 @@ class ParkourState(BaseState):
         pygame.mixer.music.play(-1)
 
         self.play_state = kwargs["play_state"]
+        
+        #number of columns and rows that will be in the map        
+        cols_num = max(5, settings.MAP_COLUMNS - int(self.play_state.rounds * 1.3))
+        rows_num = max(5, settings.MAP_ROWS - int(self.play_state.rounds * 1.3))
+        
+        centered_map_x = (settings.VIRTUAL_WIDTH - cols_num * settings.TILE_SIZE)/2
+        centered_map_y = (settings.VIRTUAL_HEIGHT - rows_num * settings.TILE_SIZE)/2
+        self.mapa = Map(x=centered_map_x, y=centered_map_y, columns=cols_num, rows=rows_num)
+        self._construir_arena_de_prueba()
 
         # Personapas que ya venían caminando en el menú (si las hay) —
         # se REUTILIZAN tal cual, con su posición actual, en vez de
@@ -122,7 +131,6 @@ class ParkourState(BaseState):
                 personapa.move_intent = pygame.Vector2(0, 0)  # limpia el rumbo que traía del menú
             else:
                 personapa = Personapa()
-                personapa.position = pygame.Vector2(START_POSITIONS[i])
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
@@ -147,12 +155,6 @@ class ParkourState(BaseState):
         self._round_ended = False
 
         random.choice(self.personapas).is_hot_potato = True
-
-        self.mapa = Map(x=0, y=0, columns=14, rows=10)
-        self._construir_arena_de_prueba()
-
-        if "mapa" in kwargs:
-            self.mapa = kwargs["mapa"]
             
         # NUEVO: Recalcular las listas de hundimiento basado en lo que
         # construyeron los jugadores, para que hunda solo el suelo (FLOOR).
@@ -199,6 +201,14 @@ class ParkourState(BaseState):
             # 2. Asignar la papa a un jugador AL AZAR
             jugador_elegido = random.choice(self.personapas)
             jugador_elegido.is_hot_potato = True
+        
+        self.set_personapa_positions()
+
+    def set_personapa_positions(self):
+        for i, personapa in enumerate(self.personapas):
+            col_index = 1 if i % 2 == 0 else self.mapa.columns - 2
+            row_index = 1 if i / 2 >= 1 else self.mapa.rows - 2
+            personapa.position = pygame.Vector2(self.mapa.index_to_pos(col_index, row_index))
 
     def assign_hot_potato_randomly(self) -> None:
         """Le quita la papa a todos y se la asigna a alguien al azar
@@ -290,7 +300,6 @@ class ParkourState(BaseState):
         for row in range(self.mapa.rows):
             self.mapa.set_tile_by_index(0, row, TileType.WALL)
             self.mapa.set_tile_by_index(self.mapa.columns - 1, row, TileType.WALL)
-        self.mapa.set_tile_by_index(7, 5, TileType.HOLE)
 
     @property
     def in_countdown(self) -> bool:
