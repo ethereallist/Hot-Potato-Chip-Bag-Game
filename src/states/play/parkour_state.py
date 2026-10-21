@@ -60,22 +60,6 @@ EXPLOSION_GEN_COLORS = [
     (255, 240, 120),  # generación 3 (diminuta): chispas casi blancas
 ]
 
-# --- cámara ---
-# El mapa mide exactamente lo mismo que la pantalla virtual, así que para
-# poder mover la cámara hay que acercarla (zoom) y desplazarla dentro del
-# mundo. El HUD y el conteo se dibujan encima, sin cámara.
-CAMERA_ZOOM_START = 1.12       # zoom al empezar la ronda
-CAMERA_ZOOM_END = 1.25         # zoom cuando se acaba el tiempo (más tensión)
-CAMERA_FOLLOW = 0.4            # 0 = centrada, 1 = justo sobre quien tiene la papa
-CAMERA_MOVE_SPEED = 3.5        # qué tan rápido persigue su objetivo (más = más brusca)
-CAMERA_ZOOM_SPEED = 2.5        # qué tan rápido cambia el zoom
-CAMERA_EXPLOSION_ZOOM = 1.6    # zoom hacia la explosión al terminar la ronda
-# margen alrededor de los jugadores vivos que SIEMPRE debe quedar a la vista
-# (más arriba porque el sombrero y el indicador de la papa sobresalen)
-CAMERA_PAD_X = 30
-CAMERA_PAD_TOP = 55
-CAMERA_PAD_BOTTOM = 20
-
 
 class ExplosionParticle:
     """Partícula de la explosión que sabe "partirse" en varias más
@@ -123,16 +107,15 @@ class ParkourState(BaseState):
         pygame.mixer.music.play(-1)
 
         self.play_state = kwargs["play_state"]
-
-        # cámara: arranca centrada y sin zoom, y se va acercando sola
-        self._world_size = (
-            getattr(settings, "VIRTUAL_WIDTH", 672),
-            getattr(settings, "VIRTUAL_HEIGHT", 480),
-        )
-        self._cam_center = pygame.Vector2(self._world_size[0] / 2, self._world_size[1] / 2)
-        self._cam_zoom = 1.0
-        self._cam_rect = pygame.Rect(0, 0, *self._world_size)
-        self._world_surface = None
+        
+        #number of columns and rows that will be in the map        
+        cols_num = max(5, settings.MAP_COLUMNS - int(self.play_state.rounds * 1.3))
+        rows_num = max(5, settings.MAP_ROWS - int(self.play_state.rounds * 1.3))
+        
+        centered_map_x = (settings.VIRTUAL_WIDTH - cols_num * settings.TILE_SIZE)/2
+        centered_map_y = (settings.VIRTUAL_HEIGHT - rows_num * settings.TILE_SIZE)/2
+        self.mapa = Map(x=centered_map_x, y=centered_map_y, columns=cols_num, rows=rows_num)
+        self._construir_arena_de_prueba()
 
         # Personapas que ya venían caminando en el menú (si las hay) —
         # se REUTILIZAN tal cual, con su posición actual, en vez de
@@ -150,7 +133,6 @@ class ParkourState(BaseState):
                 personapa.move_intent = pygame.Vector2(0, 0)  # limpia el rumbo que traía del menú
             else:
                 personapa = Personapa()
-                personapa.position = pygame.Vector2(START_POSITIONS[i])
 
             controller = PlayerController(config)
             controller.possessed_entity = personapa
@@ -175,12 +157,6 @@ class ParkourState(BaseState):
         self._round_ended = False
 
         random.choice(self.personapas).is_hot_potato = True
-
-        self.mapa = Map(x=0, y=0, columns=14, rows=10)
-        self._construir_arena_de_prueba()
-
-        if "mapa" in kwargs:
-            self.mapa = kwargs["mapa"]
             
         # NUEVO: Recalcular las listas de hundimiento basado en lo que
         # construyeron los jugadores, para que hunda solo el suelo (FLOOR).
@@ -227,6 +203,14 @@ class ParkourState(BaseState):
             # 2. Asignar la papa a un jugador AL AZAR
             jugador_elegido = random.choice(self.personapas)
             jugador_elegido.is_hot_potato = True
+        
+        self.set_personapa_positions()
+
+    def set_personapa_positions(self):
+        for i, personapa in enumerate(self.personapas):
+            col_index = 1 if i % 2 == 0 else self.mapa.columns - 2
+            row_index = 1 if i / 2 >= 1 else self.mapa.rows - 2
+            personapa.position = pygame.Vector2(self.mapa.index_to_pos(col_index, row_index))
 
         self._background = settings.TEXTURES["background_bag"]
 
@@ -320,7 +304,6 @@ class ParkourState(BaseState):
         for row in range(self.mapa.rows):
             self.mapa.set_tile_by_index(0, row, TileType.WALL)
             self.mapa.set_tile_by_index(self.mapa.columns - 1, row, TileType.WALL)
-        self.mapa.set_tile_by_index(7, 5, TileType.HOLE)
 
     @property
     def in_countdown(self) -> bool:
@@ -333,102 +316,7 @@ class ParkourState(BaseState):
             controller.on_input(input_id, input_data)
         # el mando NO pasa por aquí: se sondea directo en update()
 
-    def _alive_bounds(self):
-        """Rectángulo que contiene a todos los jugadores vivos (con margen),
-        recortado al mundo. None si no queda nadie."""
-        rects = [p.get_rect() for p in self.personapas if p.is_alive]
-        if not rects:
-            return None
-        box = rects[0].unionall(rects[1:])
-        box = pygame.Rect(
-            box.left - CAMERA_PAD_X,
-            box.top - CAMERA_PAD_TOP,
-            box.width + 2 * CAMERA_PAD_X,
-            box.height + CAMERA_PAD_TOP + CAMERA_PAD_BOTTOM,
-        )
-        return box.clip(pygame.Rect(0, 0, *self._world_size))
-
-    def _fit_zoom(self, bounds) -> float:
-        """Zoom máximo con el que todavía caben todos los jugadores."""
-        if bounds is None or bounds.w <= 0 or bounds.h <= 0:
-            return CAMERA_ZOOM_END
-        world_w, world_h = self._world_size
-        return max(1.0, min(world_w / bounds.w, world_h / bounds.h))
-
-    def _update_camera(self, dt: float) -> None:
-        world_w, world_h = self._world_size
-        world_center = pygame.Vector2(world_w / 2, world_h / 2)
-
-        if self.round_ending and self.blackout_center is not None:
-            # al explotar, la cámara se lanza hacia la explosión
-            target = pygame.Vector2(self.blackout_center)
-            target_zoom = CAMERA_EXPLOSION_ZOOM
-        else:
-            target = world_center
-            holder = next((p for p in self.personapas if p.is_alive and p.is_hot_potato), None)
-            if holder is not None:
-                target = world_center + (pygame.Vector2(holder.get_rect().center) - world_center) * CAMERA_FOLLOW
-
-            progress = 1.0 - min(1.0, max(0.0, self.round_time_left / ROUND_DURATION))
-            if self.in_countdown:
-                progress = 0.0
-            target_zoom = CAMERA_ZOOM_START + (CAMERA_ZOOM_END - CAMERA_ZOOM_START) * progress
-            # si los jugadores se separan, la cámara se aleja para que quepan todos
-            target_zoom = min(target_zoom, self._fit_zoom(self._alive_bounds()))
-
-        # suavizado independiente del framerate
-        move_t = 1.0 - math.exp(-CAMERA_MOVE_SPEED * dt)
-        zoom_t = 1.0 - math.exp(-CAMERA_ZOOM_SPEED * dt)
-        self._cam_center += (target - self._cam_center) * move_t
-        self._cam_zoom += (target_zoom - self._cam_zoom) * zoom_t
-        if not self.round_ending:
-            # alejarse es inmediato (nunca se pierde a nadie); acercarse es suave
-            self._cam_zoom = min(self._cam_zoom, self._fit_zoom(self._alive_bounds()))
-
-    def _apply_camera(self, world: pygame.Surface) -> pygame.Surface:
-        """Recorta la zona que ve la cámara (sin salirse del mundo) y la
-        escala a pantalla completa."""
-        world_w, world_h = world.get_size()
-
-        # garantía final: durante la ronda todos los jugadores vivos
-        # quedan dentro de lo que muestra la cámara
-        bounds = None if self.round_ending else self._alive_bounds()
-        zoom = self._cam_zoom
-        cx, cy = self._cam_center.x, self._cam_center.y
-        if bounds is not None:
-            zoom = min(zoom, self._fit_zoom(bounds))
-
-        view_w = world_w / zoom
-        view_h = world_h / zoom
-
-        if bounds is not None:
-            cx = min(max(cx, bounds.right - view_w / 2), bounds.left + view_w / 2)
-            cy = min(max(cy, bounds.bottom - view_h / 2), bounds.top + view_h / 2)
-
-        rect = pygame.Rect(0, 0, round(view_w), round(view_h))
-        rect.center = (round(cx), round(cy))
-        rect.clamp_ip(world.get_rect())   # nunca muestra nada fuera del mapa
-        self._cam_rect = rect
-
-        return pygame.transform.smoothscale(world.subsurface(rect), (world_w, world_h))
-
-    def _world_to_screen(self, pos) -> tuple:
-        """Convierte una posición del mundo a la de pantalla (con cámara)."""
-        world_w, world_h = self._world_size
-        rect = self._cam_rect
-        return (
-            (pos[0] - rect.x) * world_w / rect.w,
-            (pos[1] - rect.y) * world_h / rect.h,
-        )
-
-    def _get_world_surface(self, size) -> pygame.Surface:
-        if self._world_surface is None or self._world_surface.get_size() != size:
-            self._world_surface = pygame.Surface(size)
-        return self._world_surface
-
     def update(self, dt: float) -> None:
-        self._update_camera(dt)
-
         if self.round_ending:
             self._update_explosion_effect(dt)
             return
@@ -653,26 +541,20 @@ class ParkourState(BaseState):
             self._render_explosion_effect(surface)
             return
 
-        # el mundo se dibuja en una superficie aparte para aplicarle la cámara;
-        # el HUD y el conteo van después, directo a la pantalla
-        world = self._get_world_surface(surface.get_size())
-        world.fill((0, 0, 0))
-        world.blit(self._background, (0, 0))
-        self.mapa.render(world)
+        surface.blit(self._background, (0, 0))
+        self.mapa.render(surface)
 
         for i, personapa in enumerate(self.personapas):
             if not personapa.is_alive:
                 continue
             self._sprite_renderer.render(
-                world, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
+                surface, personapa, self._personapa_anim_time[i], visual_scale=PERSONAPA_VISUAL_SCALE
             )
             #if personapa.is_hot_potato:
                 #pygame.draw.circle(
                     #surface, "yellow", personapa.get_rect().center,
                     #personapa.size // 2 + 6, width=3,
                 #)
-
-        surface.blit(self._apply_camera(world), (0, 0))
 
         # Dibujar la barra superior e interfaz
         self._render_hud(surface)
@@ -688,8 +570,7 @@ class ParkourState(BaseState):
         # dibuja el mundo normal (mapa + personapas vivas) en una
         # superficie aparte, para poder aplicarle el temblor de pantalla
         # sin tocar el resto del código de dibujo
-        temp = self._get_world_surface(surface.get_size())
-        temp.fill((0, 0, 0))
+        temp = pygame.Surface(surface.get_size())
         temp.blit(self._background, (0, 0))
         self.mapa.render(temp)
 
@@ -709,14 +590,13 @@ class ParkourState(BaseState):
             shake_y = random.uniform(-EXPLOSION_SHAKE_MAGNITUDE, EXPLOSION_SHAKE_MAGNITUDE)
 
         surface.fill("black")
-        surface.blit(self._apply_camera(temp), (shake_x, shake_y))
+        surface.blit(temp, (shake_x, shake_y))
 
         # el círculo negro va creciendo hasta tapar toda la pantalla
         if self.blackout_center is not None and self.blackout_progress > 0:
             max_radius = math.hypot(surface.get_width(), surface.get_height())
             radius = int(self.blackout_progress * max_radius)
-            center = self._world_to_screen(self.blackout_center)
-            pygame.draw.circle(surface, "black", (int(center[0]), int(center[1])), radius)
+            pygame.draw.circle(surface, "black", self.blackout_center, radius)
 
     def _feet_position(self, personapa) -> tuple:
         center = personapa.get_rect().center

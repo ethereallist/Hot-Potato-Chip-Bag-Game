@@ -33,6 +33,8 @@ TITLE_FONT_PATH = "assets/fonts/Bloom-Regular.otf"
 BUTTON_FONT_PATH = "assets/fonts/Hansief.otf"
 
 MENU_PERSONAPA_COUNT = 4
+PLAYER_COUNT_OPTIONS = [2, 3, 4]   # cantidades de jugadores que se pueden elegir
+DEFAULT_PLAYER_COUNT_CURSOR = 2    # posición en la lista: empieza en 4 jugadores
 MENU_PERSONAPA_MARGIN = 30
 MENU_PERSONAPA_SPEED = 90
 DIRECTION_CHANGE_RANGE = (1.5, 3.5)
@@ -71,6 +73,8 @@ class MenuState(BaseState):
         self._hat_title_font = self._load_font(BUTTON_FONT_PATH, 40)
         self._hat_player_font = self._load_font(BUTTON_FONT_PATH, 28)
         self._hat_hint_font = self._load_font(BUTTON_FONT_PATH, 18)
+        self._count_number_font = self._load_font(BUTTON_FONT_PATH, 72)
+        self._count_label_font = self._load_font(BUTTON_FONT_PATH, 20)
 
         self.selected_index = 0
         self._time = 0.0
@@ -91,6 +95,11 @@ class MenuState(BaseState):
         self.button_state = "main"
         self.button_tween_t = 0.0  # 0 = layout normal, 1 = layout confirmado
 
+        # Pantalla "¿Cuántos jugadores?" (va antes de la selección de sombreros)
+        self.selecting_players = False
+        self.player_count_cursor = DEFAULT_PLAYER_COUNT_CURSOR
+        self.player_count = PLAYER_COUNT_OPTIONS[DEFAULT_PLAYER_COUNT_CURSOR]
+
         self.selecting_hats = False
         self.hat_sprites = None
         self.hat_current_player = 0
@@ -98,6 +107,8 @@ class MenuState(BaseState):
         self.hat_cursor = 0
 
         self._init_menu_personapas()
+        # cuántas personapas de fondo se ven/mueven (sigue lo elegido en pantalla)
+        self.active_count = len(self.menu_personapas)
 
         self._walk_right_animation = SpriteAnimation(
             "assets/sprites/personapa_walk_right.png",
@@ -156,7 +167,7 @@ class MenuState(BaseState):
     def _update_menu_personapas(self, dt: float) -> None:
         margin = MENU_PERSONAPA_MARGIN
 
-        for i, p in enumerate(self.menu_personapas):
+        for i, p in enumerate(self.menu_personapas[:self.active_count]):
             state = self._menu_personapa_state[i]
 
             self._menu_personapa_anim_time[i] += dt
@@ -203,9 +214,10 @@ class MenuState(BaseState):
                     self._menu_personapa_dir_timer[i] = random.uniform(*DIRECTION_CHANGE_RANGE)
                     p.move_intent = pygame.Vector2(1, 0).rotate(random.uniform(0, 360))
 
-        for i, a in enumerate(self.menu_personapas):
-            for j in range(i + 1, len(self.menu_personapas)):
-                b = self.menu_personapas[j]
+        active = self.menu_personapas[:self.active_count]
+        for i, a in enumerate(active):
+            for j in range(i + 1, len(active)):
+                b = active[j]
                 if not a.collides_with(b):
                     continue
 
@@ -220,7 +232,7 @@ class MenuState(BaseState):
                     self._menu_personapa_state_timer[j] = FREEZE_DURATION
 
     def _render_menu_personapas(self, surface: pygame.Surface, alpha: int = 255) -> None:
-        for i, p in enumerate(self.menu_personapas):
+        for i, p in enumerate(self.menu_personapas[:self.active_count]):
             state = self._menu_personapa_state[i]
 
             offset_x = 0
@@ -393,6 +405,10 @@ class MenuState(BaseState):
         if not getattr(input_data, "pressed", False):
             return
 
+        if self.selecting_players:
+            self._on_input_player_selection(input_id)
+            return
+
         if self.selecting_hats:
             self._on_input_hat_selection(input_id)
             return
@@ -407,6 +423,56 @@ class MenuState(BaseState):
         elif input_id == "p1_main":
             self.click_sound.play()
             self._confirm_selection()
+
+    # --- Selección de cantidad de jugadores ---
+
+    def _start_player_selection(self) -> None:
+        self.selecting_players = True
+        self.player_count_cursor = DEFAULT_PLAYER_COUNT_CURSOR
+        self._apply_player_count_preview()
+
+    def _apply_player_count_preview(self) -> None:
+        """Muestra de fondo tantas personapas como jugadores se eligen."""
+        self.active_count = PLAYER_COUNT_OPTIONS[self.player_count_cursor]
+
+    def _on_input_player_selection(self, input_id: str) -> None:
+        # Cualquier flecha/WASD del jugador 1 mueve la selección
+        if input_id in ("p1_left", "p1_up"):
+            self.player_count_cursor = (self.player_count_cursor - 1) % len(PLAYER_COUNT_OPTIONS)
+            self.hover_sound.play()
+            self._apply_player_count_preview()
+
+        elif input_id in ("p1_right", "p1_down"):
+            self.player_count_cursor = (self.player_count_cursor + 1) % len(PLAYER_COUNT_OPTIONS)
+            self.hover_sound.play()
+            self._apply_player_count_preview()
+
+        elif input_id == "p1_main":
+            self.click_sound.play()
+            self._confirm_player_count()
+
+        elif input_id == "p1_secondary":
+            # Volver al menú principal
+            self.hover_sound.play()
+            self.selecting_players = False
+            self.active_count = len(self.menu_personapas)
+            self.button_state = "returning"
+
+    def _confirm_player_count(self) -> None:
+        self.player_count = PLAYER_COUNT_OPTIONS[self.player_count_cursor]
+        self.selecting_players = False
+
+        # Se descartan las personapas de más (y sus listas de estado) para que
+        # la selección de sombreros y la partida usen solo los jugadores elegidos.
+        n = self.player_count
+        del self.menu_personapas[n:]
+        del self._menu_personapa_state[n:]
+        del self._menu_personapa_state_timer[n:]
+        del self._menu_personapa_dir_timer[n:]
+        del self._menu_personapa_anim_time[n:]
+        self.active_count = n
+
+        self._start_hat_selection()
 
     def _on_input_hat_selection(self, input_id: str) -> None:
         if self.hat_current_player >= len(self.menu_personapas):
@@ -436,7 +502,11 @@ class MenuState(BaseState):
             self.hat_cursor = 0
 
             if self.hat_current_player >= len(self.menu_personapas):
-                self.state_machine.change("play", personapas=self.menu_personapas)
+                self.state_machine.change(
+                    "play",
+                    personapas=self.menu_personapas,
+                    player_count=self.player_count,
+                )
             else:
                 self._apply_hat_preview()
 
@@ -466,7 +536,7 @@ class MenuState(BaseState):
         if self.selected_index == 0:  # Jugar
             if self.button_state == "main":
                 self.button_state = "confirming"
-                self._start_hat_selection()
+                self._start_player_selection()
         else:  # Salir
             if self.button_state == "confirm":
                 self.button_state = "returning"
@@ -489,8 +559,54 @@ class MenuState(BaseState):
 
         self._render_buttons(surface, eased)
 
+        if self.selecting_players:
+            self._render_player_selection_overlay(surface)
+
         if self.selecting_hats:
             self._render_hat_selection_overlay(surface)
+
+    def _render_player_selection_overlay(self, surface: pygame.Surface) -> None:
+        # Mismo estilo que "Selecciona tu Sombrero": Hansief, blanco, centrado
+        title_text = self._hat_title_font.render("¿Cuántos jugadores?", True, "white")
+        surface.blit(title_text, title_text.get_rect(center=(self.width // 2, 40)))
+
+        subtitle = self._hat_player_font.render("Elige de 2 a 4", True, TITLE_COLOR)
+        surface.blit(subtitle, subtitle.get_rect(center=(self.width // 2, 80)))
+
+        hint_text = self._hat_hint_font.render(
+            "A / D o W / S: Cambiar | Botón principal: Confirmar", True, "white"
+        )
+        surface.blit(hint_text, hint_text.get_rect(center=(self.width // 2, 120)))
+        back_text = self._hat_hint_font.render("Botón secundario: Volver", True, "white")
+        surface.blit(back_text, back_text.get_rect(center=(self.width // 2, 144)))
+
+        # Tres tarjetas con el mismo look de los botones del menú
+        card_w, card_h, gap = 130, 150, 30
+        total_w = card_w * len(PLAYER_COUNT_OPTIONS) + gap * (len(PLAYER_COUNT_OPTIONS) - 1)
+        start_x = (self.width - total_w) // 2
+        center_y = self.height // 2 + 40
+
+        for i, count in enumerate(PLAYER_COUNT_OPTIONS):
+            is_selected = i == self.player_count_cursor
+            bounce = math.sin(self._time * 6) * 4 if is_selected else 0
+
+            rect = pygame.Rect(0, 0, card_w, card_h)
+            rect.center = (start_x + card_w // 2 + i * (card_w + gap), center_y + bounce)
+
+            shadow_rect = rect.copy()
+            shadow_rect.y += 6
+            pygame.draw.rect(surface, (20, 20, 30), shadow_rect, border_radius=18)
+
+            fill = BUTTON_FILL_SELECTED if is_selected else BUTTON_FILL_IDLE
+            text_color = BUTTON_TEXT_SELECTED if is_selected else BUTTON_TEXT_IDLE
+            pygame.draw.rect(surface, fill, rect, border_radius=18)
+            pygame.draw.rect(surface, OUTLINE_COLOR, rect, width=4, border_radius=18)
+
+            number = self._count_number_font.render(str(count), True, text_color)
+            surface.blit(number, number.get_rect(center=(rect.centerx, rect.centery - 14)))
+
+            label = self._count_label_font.render("JUGADORES", True, text_color)
+            surface.blit(label, label.get_rect(center=(rect.centerx, rect.bottom - 28)))
 
     def _render_hat_selection_overlay(self, surface: pygame.Surface) -> None:
         title_text = self._hat_title_font.render("Selecciona tu Sombrero", True, "white")
@@ -570,7 +686,7 @@ class MenuState(BaseState):
         showing_arrow = self.button_state != "main"
 
         for i, option in enumerate(OPTIONS):
-            if option == "SALIR" and self.selecting_hats:
+            if option == "SALIR" and (self.selecting_hats or self.selecting_players):
                 continue
             
             is_selected = i == self.selected_index
