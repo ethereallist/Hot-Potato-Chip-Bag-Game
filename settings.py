@@ -14,8 +14,8 @@ from gale import frames
 
 from gale.input_handler import (
     InputHandler,
-    GAMEPAD_AXIS_RIGHT_X,
-    GAMEPAD_AXIS_RIGHT_Y,
+    GAMEPAD_AXIS_LEFT_X,
+    GAMEPAD_AXIS_LEFT_Y,
     GAMEPAD_BUTTON_X,
     GAMEPAD_BUTTON_B,
     GAMEPAD_BUTTON_DPAD_UP,
@@ -79,6 +79,8 @@ InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p1_left", 0)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p1_right", 0)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p1_up", 0)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p1_down", 0)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_X, "axis_x", 0)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_Y, "axis_y", 0)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p1_main", 0)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p1_secondary", 0)
 
@@ -87,16 +89,34 @@ InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p2_left", 1)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p2_right", 1)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p2_up", 1)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p2_down", 1)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_X, "axis_x", 1)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_Y, "axis_y", 1)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p2_main", 1)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p2_secondary", 1)
 
-# --- Jugador 2: Gamepad ---
+# --- Jugador 3: Gamepad ---
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p3_left", 2)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p3_right", 2)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p3_up", 2)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p3_down", 2)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_X, "axis_x", 2)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_Y, "axis_y", 2)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p3_main", 2)
 InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p3_secondary", 2)
+
+
+# --- Jugador 4: Gamepad ---
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_LEFT, "p4_left", 3)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_RIGHT, "p4_right", 3)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_UP, "p4_up", 3)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_DPAD_DOWN, "p4_down", 3)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_X, "axis_x", 3)
+InputHandler.set_gamepad_axis_action(GAMEPAD_AXIS_LEFT_Y, "axis_y", 3)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_X, "p4_main", 3)
+InputHandler.set_gamepad_button_action(GAMEPAD_BUTTON_B, "p4_secondary", 3)
+
+mandos = []
+DEAD_ZONE_VAL = 0.15  
 
 # --- Jugador 1: teclado (WASD + E dash + Q secundaria) ---
 InputHandler.set_keyboard_action(pygame.K_a, "p1_left")
